@@ -21,6 +21,7 @@ import androidx.compose.material.icons.outlined.CleaningServices
 import androidx.compose.material.icons.outlined.CloudDone
 import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Person
+import androidx.compose.material.icons.outlined.SystemUpdate
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -38,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -47,19 +49,28 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import coil3.imageLoader
 import com.hextapp.android.BuildConfig
+import com.hextapp.android.data.local.UpdatePreferences
+import com.hextapp.android.data.update.AppUpdateManager
+import com.hextapp.android.data.update.UpdateUiState
 import com.hextapp.android.ui.components.HextappTopBar
 import com.hextapp.android.ui.theme.HextPrimary
 import com.hextapp.android.ui.theme.HextSecondary
+import kotlinx.coroutines.launch
 
 @Composable
 fun ProfileScreen(
     viewModel: ProfileViewModel,
     isDarkTheme: Boolean,
-    onToggleTheme: () -> Unit
+    onToggleTheme: () -> Unit,
+    appUpdateManager: AppUpdateManager,
+    updatePreferences: UpdatePreferences
 ) {
     val state by viewModel.uiState.collectAsState()
     val session = state.session
     val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val autoUpdateEnabled by updatePreferences.autoUpdateEnabled.collectAsState(initial = false)
+    val updateState by appUpdateManager.uiState.collectAsState()
     var cacheCleared by remember { mutableStateOf(false) }
 
     Column(modifier = Modifier.fillMaxSize()) {
@@ -291,6 +302,66 @@ fun ProfileScreen(
                         Column {
                             Text("Servidor conectado", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
                             Text(BuildConfig.API_BASE_URL, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
+                    }
+
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(Icons.Outlined.SystemUpdate, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(12.dp))
+                            Column {
+                                Text("Auto-actualizar app", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+                                Text(
+                                    if (autoUpdateEnabled) "Descarga e instala nuevas versiones automáticamente" else "Preguntar antes de descargar actualizaciones",
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = autoUpdateEnabled,
+                            onCheckedChange = { enabled ->
+                                scope.launch { updatePreferences.setAutoUpdateEnabled(enabled) }
+                            }
+                        )
+                    }
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = when (updateState) {
+                                is UpdateUiState.Checking -> "Buscando actualizaciones..."
+                                is UpdateUiState.UpToDate -> "Estás al día (v${BuildConfig.VERSION_NAME})"
+                                is UpdateUiState.Error -> (updateState as UpdateUiState.Error).message
+                                else -> "Versión actual: v${BuildConfig.VERSION_NAME}"
+                            },
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        TextButton(
+                            enabled = updateState !is UpdateUiState.Checking && updateState !is UpdateUiState.Downloading,
+                            onClick = {
+                                scope.launch {
+                                    appUpdateManager.checkForUpdates(
+                                        autoTrigger = false,
+                                        activityContextForAutoInstall = context
+                                    )
+                                }
+                            }
+                        ) {
+                            Text("Buscar")
                         }
                     }
                 }

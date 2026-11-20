@@ -4,9 +4,11 @@ import android.app.Application
 import com.hextapp.android.data.download.ApkDownloadManager
 import com.hextapp.android.data.local.ThemePreferences
 import com.hextapp.android.data.local.TokenStorage
+import com.hextapp.android.data.local.UpdatePreferences
 import com.hextapp.android.data.network.ApolloClientProvider
 import com.hextapp.android.data.repository.AuthRepository
 import com.hextapp.android.data.repository.CatalogRepository
+import com.hextapp.android.data.update.AppUpdateManager
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -15,11 +17,17 @@ import kotlinx.coroutines.launch
 class AppContainer(application: Application) {
     private val tokenStorage = TokenStorage(application)
     val themePreferences = ThemePreferences(application)
+    val updatePreferences = UpdatePreferences(application)
     private val apolloProvider = ApolloClientProvider(tokenStorage)
 
     val catalogRepository = CatalogRepository(apolloProvider.apolloClient)
     val authRepository = AuthRepository(apolloProvider.apolloClient, tokenStorage)
     val apkDownloadManager = ApkDownloadManager(application, apolloProvider.okHttpClient)
+    val appUpdateManager = AppUpdateManager(
+        okHttpClient = apolloProvider.okHttpClient,
+        apkDownloadManager = apkDownloadManager,
+        updatePreferences = updatePreferences
+    )
 }
 
 class HextappApp : Application() {

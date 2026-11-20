@@ -5,6 +5,9 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CollectionsBookmark
@@ -17,19 +20,25 @@ import androidx.compose.material.icons.rounded.Explore
 import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SportsEsports
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -39,6 +48,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.hextapp.android.data.update.UpdateUiState
 import com.hextapp.android.ui.screens.detail.AppDetailScreen
 import com.hextapp.android.ui.screens.detail.AppDetailViewModel
 import com.hextapp.android.ui.screens.explore.ExploreScreen
@@ -99,6 +109,86 @@ private fun HextappRoot(
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    val updateState by container.appUpdateManager.uiState.collectAsState()
+
+    LaunchedEffect(Unit) {
+        container.appUpdateManager.checkForUpdates(
+            autoTrigger = true,
+            activityContextForAutoInstall = context
+        )
+    }
+
+    when (val uState = updateState) {
+        is UpdateUiState.Available -> {
+            AlertDialog(
+                onDismissRequest = { container.appUpdateManager.dismissDialog() },
+                title = { Text("Nueva versión disponible (v${uState.release.version})") },
+                text = {
+                    Column {
+                        Text(uState.release.releaseNotes)
+                        Spacer(Modifier.height(10.dp))
+                        Text(
+                            "Puedes activar la actualización automática desde Perfil > Actualizaciones.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        scope.launch {
+                            container.appUpdateManager.downloadAndInstall(uState.release, context)
+                        }
+                    }) {
+                        Text("Descargar e instalar")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        scope.launch { container.appUpdateManager.skipVersion(uState.release.version) }
+                    }) {
+                        Text("Omitir")
+                    }
+                }
+            )
+        }
+        is UpdateUiState.Downloading -> {
+            AlertDialog(
+                onDismissRequest = {},
+                title = { Text("Descargando v${uState.release.version}...") },
+                text = {
+                    Column {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        Spacer(Modifier.height(8.dp))
+                        Text("La instalación se abrirá al finalizar la descarga.")
+                    }
+                },
+                confirmButton = {}
+            )
+        }
+        is UpdateUiState.ReadyToInstall -> {
+            AlertDialog(
+                onDismissRequest = { container.appUpdateManager.dismissDialog() },
+                title = { Text("Actualización lista (v${uState.release.version})") },
+                text = { Text("Pulsa Instalar para aplicar la nueva versión de Hextapp.") },
+                confirmButton = {
+                    Button(onClick = {
+                        container.appUpdateManager.installDownloadedUpdate(context, uState.file)
+                    }) {
+                        Text("Instalar ahora")
+                    }
+                },
+                dismissButton = {
+                    TextButton(onClick = { container.appUpdateManager.dismissDialog() }) {
+                        Text("Después")
+                    }
+                }
+            )
+        }
+        else -> Unit
+    }
 
     val tabs = listOf(BottomTab.Home, BottomTab.Games, BottomTab.Explore, BottomTab.Library, BottomTab.Profile)
     val showBottomBar = tabs.any { it.route == currentRoute }
@@ -193,7 +283,9 @@ private fun HextappRoot(
                 ProfileScreen(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,
-                    onToggleTheme = onToggleTheme
+                    onToggleTheme = onToggleTheme,
+                    appUpdateManager = container.appUpdateManager,
+                    updatePreferences = container.updatePreferences
                 )
             }
             composable(
