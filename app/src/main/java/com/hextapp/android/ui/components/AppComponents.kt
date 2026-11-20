@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -587,6 +588,95 @@ fun AppListRow(
             }
         }
     }
+}
+
+@Composable
+fun RatingBar(
+    rating: Float,
+    maxRating: Float = 5f,
+    totalReviews: Int = 0,
+    modifier: Modifier = Modifier
+) {
+    val filled = (rating / maxRating).coerceIn(0f, 1f)
+    val starColor = Color(0xFFFFB300)
+    val emptyColor = MaterialTheme.colorScheme.outline
+
+    Column(modifier = modifier) {
+        Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+            repeat(5) { index ->
+                val starFill = when {
+                    index < rating.toInt() -> 1f
+                    index < rating -> rating - index.toFloat()
+                    else -> 0f
+                }
+                Box(modifier = Modifier.size(20.dp)) {
+                    // Empty star background
+                    Icon(
+                        imageVector = Icons.Rounded.Star,
+                        contentDescription = null,
+                        tint = emptyColor,
+                        modifier = Modifier.fillMaxSize()
+                    )
+                    // Filled star foreground (clipped by fill fraction)
+                    if (starFill > 0f) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .clip(FractionalClipShape(starFill))
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.Star,
+                                contentDescription = null,
+                                tint = starColor,
+                                modifier = Modifier.fillMaxSize()
+                            )
+                        }
+                    }
+                }
+            }
+            Spacer(Modifier.width(6.dp))
+            Text(
+                text = String.format(Locale.US, "%.1f", rating),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+            if (totalReviews > 0) {
+                Text(
+                    text = "(${formatDownloads(totalReviews)})",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        Spacer(Modifier.height(6.dp))
+        // Rating distribution bar
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(6.dp)
+                .clip(RoundedCornerShape(3.dp))
+                .background(emptyColor)
+        ) {
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth(filled)
+                    .fillMaxHeight()
+                    .background(
+                        Brush.horizontalGradient(listOf(starColor, Color(0xFFFF8F00)))
+                    )
+            )
+        }
+    }
+}
+
+private class FractionalClipShape(private val fraction: Float) : androidx.compose.ui.graphics.Shape {
+    override fun createOutline(
+        size: androidx.compose.ui.geometry.Size,
+        layoutDirection: androidx.compose.ui.unit.LayoutDirection,
+        density: androidx.compose.ui.unit.Density
+    ) = androidx.compose.ui.graphics.Outline.Rectangle(
+        androidx.compose.ui.geometry.Rect(0f, 0f, size.width * fraction, size.height)
+    )
 }
 
 @Composable

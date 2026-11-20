@@ -66,7 +66,9 @@ fun HomeScreen(
     Column(modifier = Modifier.fillMaxSize()) {
         HextappTopBar(
             title = "Hextapp",
-            subtitle = "Tienda Android • Juegos y Apps",
+            subtitle = if (state.androidApps.isNotEmpty() || state.androidGames.isNotEmpty())
+                "🔥 ${(state.androidApps.size + state.androidGames.size)} apps cargadas"
+            else "Tienda Android • Juegos y Apps",
             isDarkTheme = isDarkTheme,
             onToggleTheme = onToggleTheme,
             onSearchClick = onSeeAllExplore

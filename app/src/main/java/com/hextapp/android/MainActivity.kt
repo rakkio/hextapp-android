@@ -21,6 +21,8 @@ import androidx.compose.material.icons.rounded.Home
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.SportsEsports
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Badge
+import androidx.compose.material3.BadgedBox
 import androidx.compose.material3.Button
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -37,6 +39,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -62,6 +65,7 @@ import com.hextapp.android.ui.screens.library.LibraryViewModel
 import com.hextapp.android.ui.screens.profile.ProfileScreen
 import com.hextapp.android.ui.screens.profile.ProfileViewModel
 import com.hextapp.android.ui.theme.HextappTheme
+import com.hextapp.android.ui.theme.HextPrimary
 import kotlinx.coroutines.launch
 
 private sealed class BottomTab(
@@ -213,10 +217,27 @@ private fun HextappRoot(
                                     }
                                 },
                                 icon = {
-                                    Icon(
-                                        imageVector = if (selected) tab.selectedIcon else tab.icon,
-                                        contentDescription = tab.label
-                                    )
+                                    if (tab is BottomTab.Library) {
+                                        BadgedBox(
+                                            badge = {
+                                                if (currentRoute != tab.route) {
+                                                    Badge(containerColor = HextPrimary) {
+                                                        Text("↓", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                                                    }
+                                                }
+                                            }
+                                        ) {
+                                            Icon(
+                                                imageVector = if (selected) tab.selectedIcon else tab.icon,
+                                                contentDescription = tab.label
+                                            )
+                                        }
+                                    } else {
+                                        Icon(
+                                            imageVector = if (selected) tab.selectedIcon else tab.icon,
+                                            contentDescription = tab.label
+                                        )
+                                    }
                                 },
                                 label = { Text(tab.label, maxLines = 1) }
                             )

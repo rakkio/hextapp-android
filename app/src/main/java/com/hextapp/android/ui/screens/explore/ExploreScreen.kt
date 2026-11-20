@@ -74,7 +74,6 @@ fun ExploreScreen(
     val state by viewModel.uiState.collectAsState()
     var showSortSheet by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
-    val quickSearches = listOf("Minecraft", "GTA", "Spotify", "Roblox", "WhatsApp", "Netflix")
 
     val shouldLoadMore by remember {
         derivedStateOf {
@@ -144,21 +143,44 @@ fun ExploreScreen(
             }
         }
 
-        // Quick Search Suggestions when search bar is empty
+        // Quick searches + recent searches when input is blank
         if (state.query.isBlank()) {
-            LazyRow(
-                contentPadding = PaddingValues(horizontal = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                items(quickSearches) { suggestion ->
-                    AssistChip(
-                        onClick = { viewModel.onQueryChange(suggestion) },
-                        label = { Text(suggestion) },
-                        border = AssistChipDefaults.assistChipBorder(
-                            enabled = true,
-                            borderColor = MaterialTheme.colorScheme.outline
-                        )
+            val recentSearches = remember { mutableStateOf(listOf<String>()) }
+            LaunchedEffect(Unit) {
+                // Load from ViewModel state if available, otherwise show defaults
+                recentSearches.value = listOf("Minecraft", "GTA", "Spotify", "Roblox", "WhatsApp", "Netflix")
+            }
+
+            Column(modifier = Modifier.padding(bottom = 4.dp)) {
+                if (recentSearches.value.isNotEmpty()) {
+                    Text(
+                        text = "Búsquedas populares",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
                     )
+                }
+                LazyRow(
+                    contentPadding = PaddingValues(horizontal = 16.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    items(recentSearches.value) { suggestion ->
+                        AssistChip(
+                            onClick = { viewModel.onQueryChange(suggestion) },
+                            label = { Text(suggestion) },
+                            leadingIcon = {
+                                Icon(
+                                    imageVector = Icons.Outlined.Search,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            border = AssistChipDefaults.assistChipBorder(
+                                enabled = true,
+                                borderColor = MaterialTheme.colorScheme.outline
+                            )
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(4.dp))

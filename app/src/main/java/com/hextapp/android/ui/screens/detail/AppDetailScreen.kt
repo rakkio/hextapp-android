@@ -71,6 +71,7 @@ import coil3.compose.AsyncImage
 import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.ui.components.AppCarouselCard
 import com.hextapp.android.ui.components.AppIconImage
+import com.hextapp.android.ui.components.RatingBar
 import com.hextapp.android.ui.components.formatBytes
 import com.hextapp.android.ui.components.formatDownloads
 import com.hextapp.android.ui.theme.HextPrimary
@@ -218,24 +219,31 @@ fun AppDetailScreen(
                                 border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                                 modifier = Modifier.fillMaxWidth()
                             ) {
-                                Row(
+                                Column(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .padding(vertical = 12.dp),
-                                    horizontalArrangement = Arrangement.SpaceEvenly
+                                        .padding(vertical = 14.dp, horizontal = 16.dp),
+                                    verticalArrangement = Arrangement.spacedBy(12.dp)
                                 ) {
-                                    MetricColumn(
-                                        top = "${String.format(Locale.US, "%.1f", summary.rating)} ★",
-                                        bottom = "${summary.reviewsCount} reseñas"
+                                    RatingBar(
+                                        rating = summary.rating.toFloat(),
+                                        totalReviews = summary.reviewsCount,
+                                        modifier = Modifier.fillMaxWidth()
                                     )
-                                    MetricColumn(
-                                        top = formatDownloads(summary.downloads),
-                                        bottom = "Descargas"
-                                    )
-                                    MetricColumn(
-                                        top = summary.currentSize,
-                                        bottom = "Tamaño APK"
-                                    )
+                                    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f))
+                                    Row(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceEvenly
+                                    ) {
+                                        MetricColumn(
+                                            top = formatDownloads(summary.downloads),
+                                            bottom = "Descargas"
+                                        )
+                                        MetricColumn(
+                                            top = summary.currentSize,
+                                            bottom = "Tamaño APK"
+                                        )
+                                    }
                                 }
                             }
 
