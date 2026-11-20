@@ -3,6 +3,7 @@ package com.hextapp.android.ui.screens.home
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.hextapp.android.data.local.HomeCacheStorage
 import com.hextapp.android.data.repository.CatalogRepository
 import com.hextapp.android.graphql.GetCategoriesQuery
 import com.hextapp.android.graphql.fragment.ItemSummary
@@ -18,6 +19,7 @@ import kotlinx.coroutines.launch
 data class HomeUiState(
     val isLoading: Boolean = true,
     val isRefreshing: Boolean = false,
+    val isOfflineFallback: Boolean = false,
     val error: String? = null,
     val categories: List<GetCategoriesQuery.Category> = emptyList(),
     val selectedCategorySlug: String? = null,
@@ -28,13 +30,40 @@ data class HomeUiState(
     val topRatedApks: List<ItemSummary> = emptyList()
 )
 
-class HomeViewModel(private val catalogRepository: CatalogRepository) : ViewModel() {
+class HomeViewModel(
+    private val catalogRepository: CatalogRepository,
+    private val homeCacheStorage: HomeCacheStorage
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(HomeUiState())
     val uiState: StateFlow<HomeUiState> = _uiState.asStateFlow()
 
     init {
-        loadHome(isRefresh = false)
+        viewModelScope.launch {
+            val cached = homeCacheStorage.load()
+            if (cached != null && (cached.androidGames.isNotEmpty() || cached.androidApps.isNotEmpty() || cached.newestApks.isNotEmpty())) {
+                with(homeCacheStorage) {
+                    val games = cached.androidGames.map { it.toGraphql() }
+                    val apps = cached.androidApps.map { it.toGraphql() }
+                    val newest = cached.newestApks.map { it.toGraphql() }
+                    val topRated = cached.topRatedApks.map { it.toGraphql() }
+                    val categories = cached.categories.map { it.toGraphql() }
+                    val hero = (games.take(3) + apps.take(2) + newest.take(2)).distinctBy { it.id }.take(5)
+                    _uiState.update {
+                        it.copy(
+                            isLoading = false,
+                            categories = categories,
+                            featured = hero,
+                            androidGames = games,
+                            androidApps = apps,
+                            newestApks = newest,
+                            topRatedApks = topRated
+                        )
+                    }
+                }
+            }
+            loadHome(isRefresh = cached != null)
+        }
     }
 
     fun selectCategory(slug: String?) {
@@ -44,10 +73,14 @@ class HomeViewModel(private val catalogRepository: CatalogRepository) : ViewMode
 
     fun loadHome(isRefresh: Boolean = true) {
         viewModelScope.launch {
+            val hasExistingContent = _uiState.value.androidGames.isNotEmpty() ||
+                _uiState.value.androidApps.isNotEmpty() ||
+                _uiState.value.newestApks.isNotEmpty()
+
             _uiState.update {
                 it.copy(
-                    isLoading = !isRefresh && it.androidGames.isEmpty() && it.androidApps.isEmpty(),
-                    isRefreshing = isRefresh,
+                    isLoading = !isRefresh && !hasExistingContent,
+                    isRefreshing = isRefresh || hasExistingContent,
                     error = null
                 )
             }
@@ -101,38 +134,71 @@ class HomeViewModel(private val catalogRepository: CatalogRepository) : ViewMode
             val newestRes = newestDef.await()
             val topRatedRes = topRatedDef.await()
 
-            val games = gamesRes.getOrNull()?.items.orEmpty()
-            val apps = appsRes.getOrNull()?.items.orEmpty()
             val newest = newestRes.getOrNull()?.items.orEmpty()
             val topRated = topRatedRes.getOrNull()?.items.orEmpty()
+            var games = gamesRes.getOrNull()?.items.orEmpty()
+            var apps = appsRes.getOrNull()?.items.orEmpty()
 
-            val hero = (games.take(3) + apps.take(2)).distinctBy { it.id }
+            // Fallback: if category-specific queries returned empty but general Android items exist
+            if (games.isEmpty() && newest.isNotEmpty()) {
+                games = newest.filter {
+                    it.category?.slug?.contains("game", ignoreCase = true) == true ||
+                        it.category?.name?.contains("game", ignoreCase = true) == true ||
+                        it.category?.name?.contains("juego", ignoreCase = true) == true
+                }.ifEmpty { newest.take(6) }
+            }
+            if (apps.isEmpty() && topRated.isNotEmpty()) {
+                apps = topRated.filterNot { item -> games.any { it.id == item.id } }.ifEmpty { topRated.take(6) }
+            }
 
+            val receivedFreshData = games.isNotEmpty() || apps.isNotEmpty() || newest.isNotEmpty()
             val firstError = listOfNotNull(
                 gamesRes.exceptionOrNull()?.message,
-                appsRes.exceptionOrNull()?.message
+                appsRes.exceptionOrNull()?.message,
+                newestRes.exceptionOrNull()?.message
             ).firstOrNull()
 
-            _uiState.update {
-                it.copy(
-                    isLoading = false,
-                    isRefreshing = false,
-                    error = if (games.isEmpty() && apps.isEmpty()) firstError else null,
-                    categories = categoriesRes.getOrDefault(it.categories),
-                    featured = hero,
-                    androidGames = games,
-                    androidApps = apps,
-                    newestApks = newest,
-                    topRatedApks = topRated
-                )
+            if (receivedFreshData) {
+                val categories = categoriesRes.getOrDefault(_uiState.value.categories)
+                val hero = (games.take(3) + apps.take(2) + newest.take(2)).distinctBy { it.id }.take(5)
+                if (categorySlug == null) {
+                    homeCacheStorage.save(categories, games, apps, newest, topRated)
+                }
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        isOfflineFallback = false,
+                        error = null,
+                        categories = categories,
+                        featured = hero,
+                        androidGames = games,
+                        androidApps = apps,
+                        newestApks = newest,
+                        topRatedApks = topRated
+                    )
+                }
+            } else {
+                _uiState.update {
+                    it.copy(
+                        isLoading = false,
+                        isRefreshing = false,
+                        isOfflineFallback = hasExistingContent,
+                        error = if (hasExistingContent) null else (firstError ?: "El servidor no respondió a tiempo")
+                    )
+                }
             }
         }
     }
 
     companion object {
-        fun factory(repo: CatalogRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        fun factory(
+            repo: CatalogRepository,
+            cacheStorage: HomeCacheStorage
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = HomeViewModel(repo) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                HomeViewModel(repo, cacheStorage) as T
         }
     }
 }

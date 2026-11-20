@@ -2,6 +2,8 @@ package com.hextapp.android
 
 import android.app.Application
 import com.hextapp.android.data.download.ApkDownloadManager
+import com.hextapp.android.data.local.HomeCacheStorage
+import com.hextapp.android.data.local.SearchHistoryStorage
 import com.hextapp.android.data.local.ThemePreferences
 import com.hextapp.android.data.local.TokenStorage
 import com.hextapp.android.data.local.UpdatePreferences
@@ -18,6 +20,8 @@ class AppContainer(application: Application) {
     private val tokenStorage = TokenStorage(application)
     val themePreferences = ThemePreferences(application)
     val updatePreferences = UpdatePreferences(application)
+    val homeCacheStorage = HomeCacheStorage(application)
+    val searchHistoryStorage = SearchHistoryStorage(application)
     private val apolloProvider = ApolloClientProvider(tokenStorage)
 
     val catalogRepository = CatalogRepository(apolloProvider.apolloClient)

@@ -260,7 +260,9 @@ private fun HextappRoot(
             modifier = Modifier.padding(innerPadding)
         ) {
             composable(BottomTab.Home.route) {
-                val vm: HomeViewModel = viewModel(factory = HomeViewModel.factory(container.catalogRepository))
+                val vm: HomeViewModel = viewModel(
+                    factory = HomeViewModel.factory(container.catalogRepository, container.homeCacheStorage)
+                )
                 HomeScreen(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,
@@ -281,7 +283,9 @@ private fun HextappRoot(
                 )
             }
             composable(BottomTab.Explore.route) {
-                val vm: ExploreViewModel = viewModel(factory = ExploreViewModel.factory(container.catalogRepository))
+                val vm: ExploreViewModel = viewModel(
+                    factory = ExploreViewModel.factory(container.catalogRepository, container.searchHistoryStorage)
+                )
                 ExploreScreen(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,

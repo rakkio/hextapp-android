@@ -3,6 +3,7 @@ package com.hextapp.android.ui.screens.explore
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.hextapp.android.data.local.SearchHistoryStorage
 import com.hextapp.android.data.repository.CatalogRepository
 import com.hextapp.android.graphql.GetCategoriesQuery
 import com.hextapp.android.graphql.fragment.ItemSummary
@@ -35,10 +36,14 @@ data class ExploreUiState(
     val hasNextPage: Boolean = false,
     val currentPage: Int = 1,
     val totalCount: Int = 0,
+    val recentQueries: List<String> = emptyList(),
     val error: String? = null
 )
 
-class ExploreViewModel(private val catalogRepository: CatalogRepository) : ViewModel() {
+class ExploreViewModel(
+    private val catalogRepository: CatalogRepository,
+    private val searchHistoryStorage: SearchHistoryStorage
+) : ViewModel() {
 
     private val _uiState = MutableStateFlow(ExploreUiState())
     val uiState: StateFlow<ExploreUiState> = _uiState.asStateFlow()
@@ -46,6 +51,11 @@ class ExploreViewModel(private val catalogRepository: CatalogRepository) : ViewM
     private var searchJob: Job? = null
 
     init {
+        viewModelScope.launch {
+            searchHistoryStorage.recentQueries.collect { queries ->
+                _uiState.update { it.copy(recentQueries = queries) }
+            }
+        }
         viewModelScope.launch {
             catalogRepository.getCategories(Platform.ANDROID).onSuccess { cats ->
                 _uiState.update { it.copy(categories = cats) }
@@ -88,6 +98,10 @@ class ExploreViewModel(private val catalogRepository: CatalogRepository) : ViewM
         loadPage(page = state.currentPage + 1, append = true)
     }
 
+    fun clearSearchHistory() {
+        viewModelScope.launch { searchHistoryStorage.clear() }
+    }
+
     fun retry() {
         loadPage(page = 1, append = false)
     }
@@ -102,6 +116,9 @@ class ExploreViewModel(private val catalogRepository: CatalogRepository) : ViewM
                 )
             }
             val s = _uiState.value
+            if (!append && s.query.trim().length >= 2) {
+                searchHistoryStorage.addQuery(s.query)
+            }
             val effectiveCategory = s.selectedCategorySlug ?: s.scopeFilter.defaultCategorySlug
             val result = catalogRepository.getItems(
                 page = page,
@@ -136,9 +153,13 @@ class ExploreViewModel(private val catalogRepository: CatalogRepository) : ViewM
     }
 
     companion object {
-        fun factory(repo: CatalogRepository): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
+        fun factory(
+            repo: CatalogRepository,
+            searchHistoryStorage: SearchHistoryStorage
+        ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
-            override fun <T : ViewModel> create(modelClass: Class<T>): T = ExploreViewModel(repo) as T
+            override fun <T : ViewModel> create(modelClass: Class<T>): T =
+                ExploreViewModel(repo, searchHistoryStorage) as T
         }
     }
 }

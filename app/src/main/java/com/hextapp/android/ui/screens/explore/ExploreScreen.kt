@@ -145,26 +145,36 @@ fun ExploreScreen(
 
         // Quick searches + recent searches when input is blank
         if (state.query.isBlank()) {
-            val recentSearches = remember { mutableStateOf(listOf<String>()) }
-            LaunchedEffect(Unit) {
-                // Load from ViewModel state if available, otherwise show defaults
-                recentSearches.value = listOf("Minecraft", "GTA", "Spotify", "Roblox", "WhatsApp", "Netflix")
-            }
+            val popularDefaults = listOf("Minecraft", "GTA", "Spotify", "Roblox", "WhatsApp", "Netflix")
+            val displayedQueries = (state.recentQueries + popularDefaults).distinct().take(8)
 
             Column(modifier = Modifier.padding(bottom = 4.dp)) {
-                if (recentSearches.value.isNotEmpty()) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = 16.dp, vertical = 4.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Text(
-                        text = "Búsquedas populares",
+                        text = if (state.recentQueries.isNotEmpty()) "Recientes y populares" else "Búsquedas populares",
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp)
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    if (state.recentQueries.isNotEmpty()) {
+                        Text(
+                            text = "Borrar historial",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.secondary,
+                            modifier = Modifier.clickable { viewModel.clearSearchHistory() }
+                        )
+                    }
                 }
                 LazyRow(
                     contentPadding = PaddingValues(horizontal = 16.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    items(recentSearches.value) { suggestion ->
+                    items(displayedQueries) { suggestion ->
                         AssistChip(
                             onClick = { viewModel.onQueryChange(suggestion) },
                             label = { Text(suggestion) },

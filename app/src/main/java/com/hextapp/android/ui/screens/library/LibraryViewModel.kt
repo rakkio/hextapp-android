@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.hextapp.android.data.download.ApkDownloadManager
+import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.data.download.LocalApkFile
 import com.hextapp.android.data.repository.AuthRepository
 import com.hextapp.android.data.repository.CatalogRepository
@@ -23,6 +24,7 @@ data class LibraryUiState(
     val favoriteItems: List<ItemSummary> = emptyList(),
     val bookmarkItems: List<ItemSummary> = emptyList(),
     val localApks: List<LocalApkFile> = emptyList(),
+    val activeDownloads: Map<String, DownloadState> = emptyMap(),
     val isLoading: Boolean = false
 )
 
@@ -39,15 +41,20 @@ class LibraryViewModel(
         authRepository.session,
         allAndroidItems,
         apkDownloadManager.localApks,
+        apkDownloadManager.downloads,
         isLoading
-    ) { session, catalog, localApks, loading ->
+    ) { session, catalog, localApks, downloads, loading ->
         val favIds = session?.favorites.orEmpty()
         val bmIds = session?.bookmarks.orEmpty()
+        val inProgress = downloads.filterValues {
+            it is DownloadState.Resolving || it is DownloadState.Downloading
+        }
         LibraryUiState(
             session = session,
             favoriteItems = catalog.filter { favIds.contains(it.id) },
             bookmarkItems = catalog.filter { bmIds.contains(it.id) },
             localApks = localApks,
+            activeDownloads = inProgress,
             isLoading = loading
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())

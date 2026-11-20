@@ -24,6 +24,7 @@ import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.PrimaryTabRow
 import androidx.compose.material3.Surface
@@ -42,6 +43,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.ui.components.AppListRow
 import com.hextapp.android.ui.components.HextappTopBar
 import com.hextapp.android.ui.components.formatBytes
@@ -84,7 +86,7 @@ fun LibraryScreen(
 
         when (selectedTab) {
             0 -> {
-                if (state.localApks.isEmpty()) {
+                if (state.localApks.isEmpty() && state.activeDownloads.isEmpty()) {
                     EmptyState(
                         message = "Aún no has descargado ningún APK en este dispositivo.",
                         ctaLabel = "Explorar APKs",
@@ -96,6 +98,34 @@ fun LibraryScreen(
                         contentPadding = PaddingValues(16.dp),
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
+                        if (state.activeDownloads.isNotEmpty()) {
+                            items(state.activeDownloads.entries.toList(), key = { "active_${it.key}" }) { (_, dlState) ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f)),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(14.dp)) {
+                                        val percent = (dlState as? DownloadState.Downloading)?.percent ?: 0
+                                        Text(
+                                            text = if (dlState is DownloadState.Resolving) "Preparando descarga..." else "Descargando APK ($percent%)",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.SemiBold
+                                        )
+                                        Spacer(Modifier.height(8.dp))
+                                        if (dlState is DownloadState.Downloading && percent > 0) {
+                                            LinearProgressIndicator(
+                                                progress = { percent / 100f },
+                                                modifier = Modifier.fillMaxWidth()
+                                            )
+                                        } else {
+                                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                                        }
+                                    }
+                                }
+                            }
+                        }
                         item {
                             Surface(
                                 shape = RoundedCornerShape(16.dp),
