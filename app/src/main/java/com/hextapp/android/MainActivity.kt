@@ -161,10 +161,17 @@ private fun HextappRoot(
         is UpdateUiState.Downloading -> {
             AlertDialog(
                 onDismissRequest = {},
-                title = { Text("Descargando v${uState.release.version}...") },
+                title = { Text("Descargando v${uState.release.version} (${uState.percent}%)") },
                 text = {
                     Column {
-                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        if (uState.percent > 0) {
+                            LinearProgressIndicator(
+                                progress = { uState.percent / 100f },
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        } else {
+                            LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                        }
                         Spacer(Modifier.height(8.dp))
                         Text("La instalación se abrirá al finalizar la descarga.")
                     }

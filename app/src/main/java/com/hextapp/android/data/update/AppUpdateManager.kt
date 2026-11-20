@@ -1,9 +1,9 @@
 package com.hextapp.android.data.update
 
 import android.content.Context
+import android.os.Environment
 import com.hextapp.android.BuildConfig
 import com.hextapp.android.data.download.ApkDownloadManager
-import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.data.local.UpdatePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -17,6 +17,7 @@ import kotlinx.serialization.json.Json
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import java.io.File
+import java.io.FileOutputStream
 
 data class AppReleaseInfo(
     val version: String,
@@ -68,6 +69,7 @@ object AppUpdateComparator {
 }
 
 class AppUpdateManager(
+    private val context: Context,
     private val okHttpClient: OkHttpClient,
     private val apkDownloadManager: ApkDownloadManager,
     private val updatePreferences: UpdatePreferences
@@ -80,7 +82,11 @@ class AppUpdateManager(
     companion object {
         private const val LATEST_RELEASE_URL =
             "https://api.github.com/repos/rakkio/hextapp-android/releases/latest"
-        private const val SELF_UPDATE_ITEM_ID = "__hextapp_self_update__"
+    }
+
+    private fun updateApkDirectory(): File {
+        val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        return File(base, "apks").apply { mkdirs() }
     }
 
     suspend fun checkForUpdates(
@@ -120,32 +126,67 @@ class AppUpdateManager(
 
     suspend fun downloadAndInstall(release: AppReleaseInfo, activityContext: Context? = null) {
         val existing = apkDownloadManager.getExistingApk("hextapp-android", release.version)
-        if (existing != null) {
+        if (existing != null && (release.apkSizeBytes <= 0L || existing.length() == release.apkSizeBytes)) {
             _uiState.value = UpdateUiState.ReadyToInstall(release, existing)
             activityContext?.let { apkDownloadManager.installApk(it, existing) }
             return
         }
 
         _uiState.value = UpdateUiState.Downloading(release, 0)
-        apkDownloadManager.downloadApk(
-            itemId = SELF_UPDATE_ITEM_ID,
-            slug = "hextapp-android",
-            version = release.version,
-            fallbackUrl = release.apkUrl
-        )
+        try {
+            val resultFile = withContext(Dispatchers.IO) {
+                val safeName = "hextapp-android-${release.version}.apk".replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                val tempFile = File(updateApkDirectory(), "$safeName.part")
+                val finalFile = File(updateApkDirectory(), safeName)
 
-        val finalState = apkDownloadManager.downloads.value[SELF_UPDATE_ITEM_ID]
-        when (finalState) {
-            is DownloadState.Completed -> {
-                _uiState.value = UpdateUiState.ReadyToInstall(release, finalState.file)
-                activityContext?.let { apkDownloadManager.installApk(it, finalState.file) }
+                val request = Request.Builder()
+                    .url(release.apkUrl)
+                    .header("User-Agent", "hextapp-android/${BuildConfig.VERSION_NAME}")
+                    .build()
+
+                okHttpClient.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        throw IllegalStateException("Error HTTP ${response.code} al descargar la actualización")
+                    }
+                    val body = response.body ?: throw IllegalStateException("Respuesta vacía del servidor")
+                    val totalBytes = if (body.contentLength() > 0) body.contentLength() else release.apkSizeBytes
+                    var bytesRead = 0L
+                    val buffer = ByteArray(16 * 1024)
+                    var lastPercent = -1
+
+                    body.byteStream().use { input ->
+                        FileOutputStream(tempFile).use { output ->
+                            while (true) {
+                                val read = input.read(buffer)
+                                if (read == -1) break
+                                output.write(buffer, 0, read)
+                                bytesRead += read
+                                val percent = if (totalBytes > 0) {
+                                    ((bytesRead * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                } else {
+                                    0
+                                }
+                                if (percent != lastPercent) {
+                                    lastPercent = percent
+                                    _uiState.value = UpdateUiState.Downloading(release, percent)
+                                }
+                            }
+                        }
+                    }
+
+                    if (finalFile.exists()) finalFile.delete()
+                    if (!tempFile.renameTo(finalFile)) {
+                        tempFile.copyTo(finalFile, overwrite = true)
+                        tempFile.delete()
+                    }
+                    finalFile
+                }
             }
-            is DownloadState.Error -> {
-                _uiState.value = UpdateUiState.Error(finalState.message)
-            }
-            else -> {
-                _uiState.value = UpdateUiState.Error("La descarga de la actualización no se completó")
-            }
+            apkDownloadManager.refreshLocalApks()
+            _uiState.value = UpdateUiState.ReadyToInstall(release, resultFile)
+            activityContext?.let { apkDownloadManager.installApk(it, resultFile) }
+        } catch (e: Exception) {
+            _uiState.value = UpdateUiState.Error(e.message ?: "Error al descargar la actualización")
         }
     }
 
