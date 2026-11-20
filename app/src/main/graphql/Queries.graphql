@@ -1,0 +1,179 @@
+fragment ItemSummary on Item {
+  id
+  name
+  slug
+  shortDescription
+  contentType
+  platform
+  currentVersion
+  currentSize
+  downloads
+  rating
+  reviewsCount
+  isFeatured
+  isNewItem
+  isHot
+  isPopular
+  logo {
+    url
+    alt
+  }
+  steam {
+    appId
+    capsule
+    hero
+    header
+  }
+  category {
+    id
+    name
+    slug
+  }
+  developer {
+    name
+  }
+}
+
+query GetCategories($platform: Platform) {
+  categories(platform: $platform, isActive: true) {
+    id
+    name
+    slug
+    icon
+    order
+    platform
+    metadata {
+      totalItems
+    }
+  }
+}
+
+query GetItems(
+  $page: Int
+  $limit: Int
+  $platform: String
+  $contentType: String
+  $categorySlug: String
+  $includeChildren: Boolean
+  $search: String
+  $sortBy: ItemSortBy
+) {
+  items(
+    page: $page
+    limit: $limit
+    platform: $platform
+    contentType: $contentType
+    categorySlug: $categorySlug
+    includeChildren: $includeChildren
+    search: $search
+    sortBy: $sortBy
+  ) {
+    items {
+      ...ItemSummary
+    }
+    pagination {
+      page
+      limit
+      totalPages
+      totalCount
+      hasNextPage
+    }
+  }
+}
+
+query GetItemDetail($slug: String, $id: ID) {
+  item(slug: $slug, id: $id) {
+    ...ItemSummary
+    description
+    instructions
+    tags
+    genres
+    architecture
+    lastUpdated
+    releaseDate
+    downloadUrl
+    currentDownloadUrl
+    systemRequirements {
+      minimum
+      recommended
+    }
+    images {
+      url
+      alt
+      order
+    }
+    versions {
+      version
+      size
+      releaseDate
+      changelog
+      isActive
+      downloads
+      metadata {
+        packageName
+        minVersion
+        targetVersion
+        permissions
+        architecture
+      }
+      downloadLinks {
+        primary {
+          url
+          type
+          isActive
+        }
+      }
+    }
+  }
+}
+
+query GetSimilarItems($contentType: String!, $categoryId: ID, $excludeId: ID!, $limit: Int) {
+  similarApps(
+    contentType: $contentType
+    categoryId: $categoryId
+    excludeId: $excludeId
+    limit: $limit
+  ) {
+    ...ItemSummary
+  }
+}
+
+query GetItemReviews($itemId: ID!, $pagination: PaginationInput) {
+  reviews(itemId: $itemId, pagination: $pagination) {
+    id
+    rating
+    title
+    content
+    version
+    isVerified
+    helpfulCount
+    createdAt
+    user {
+      id
+      name
+      username
+      avatar
+    }
+  }
+  reviewStats(itemId: $itemId) {
+    averageRating
+    totalReviews
+  }
+}
+
+query GetMe {
+  user {
+    id
+    name
+    email
+    username
+    avatar
+    bio
+    favorites
+    bookmarks
+    downloads {
+      app
+      downloadedAt
+    }
+  }
+}

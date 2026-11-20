@@ -1,0 +1,367 @@
+scalar JSON
+
+enum ContentType {
+  apk
+  ipa
+  game
+  software
+  tool
+  app
+}
+
+enum Platform {
+  ANDROID
+  IOS
+  WINDOWS
+  MACOS
+  LINUX
+  CROSS_PLATFORM
+}
+
+enum CategoryType {
+  mobile
+  desktop
+  game
+  software
+  general
+}
+
+enum DownloadLinkType {
+  DIRECT
+  EXTERNAL
+  TORRENT
+}
+
+enum Architecture {
+  X86
+  X64
+  ARM64_V8A
+  ARMEABI_V7A
+  UNIVERSAL
+}
+
+enum SortOrder {
+  ASC
+  DESC
+}
+
+enum ItemSortBy {
+  NEWEST
+  OLDEST
+  VERSION
+  RATING
+  DOWNLOADS
+  POPULARITY
+  NAME
+}
+
+enum UserRole {
+  admin
+  user
+  moderator
+}
+
+type User {
+  id: ID!
+  name: String!
+  email: String!
+  role: UserRole!
+  avatar: String
+  username: String
+  location: String
+  bio: String
+  settings: JSON
+  downloads: [UserDownload!]!
+  favorites: [String!]!
+  bookmarks: [String!]!
+  isActive: Boolean!
+  lastLogin: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type UserDownload {
+  app: String!
+  downloadedAt: String!
+}
+
+type AuthPayload {
+  token: String!
+  user: User!
+}
+
+type LogoutResponse {
+  success: Boolean!
+  message: String!
+}
+
+type Category {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String
+  icon: String
+  image: String
+  parentId: ID
+  children: [Category!]!
+  type: CategoryType!
+  platform: Platform!
+  contentType: ContentType
+  order: Int!
+  isActive: Boolean!
+  isFeatured: Boolean!
+  metadata: CategoryMetadata!
+  subcategories: [Category!]!
+}
+
+type CategoryMetadata {
+  totalItems: Int!
+  totalDownloads: Int!
+  avgRating: Float!
+}
+
+type Image {
+  url: String
+  alt: String
+  order: Int
+}
+
+type SteamArt {
+  appId: String
+  capsule: String
+  hero: String
+  header: String
+}
+
+type SystemRequirements {
+  minimum: String
+  recommended: String
+}
+
+type Developer {
+  id: ID!
+  name: String!
+  website: String
+  email: String
+}
+
+type DownloadLink {
+  url: String!
+  type: DownloadLinkType!
+  isActive: Boolean!
+}
+
+type VersionDownloadLinks {
+  primary: DownloadLink!
+  mirrors: [DownloadLink!]!
+}
+
+type VersionMetadata {
+  packageName: String
+  minVersion: String
+  targetVersion: String
+  permissions: [String!]
+  genre: [String!]
+  multiplayer: Boolean
+  online: Boolean
+  architecture: [String!]
+}
+
+type Version {
+  version: String!
+  size: String!
+  downloadLinks: VersionDownloadLinks!
+  releaseDate: String!
+  changelog: String
+  isActive: Boolean!
+  downloads: Int!
+  metadata: VersionMetadata
+}
+
+type Item {
+  id: ID!
+  name: String!
+  slug: String!
+  description: String!
+  shortDescription: String
+  category: Category
+  contentType: ContentType!
+  platform: Platform!
+  logo: Image
+  images: [Image!]!
+  steam: SteamArt
+  systemRequirements: SystemRequirements
+  developer: Developer!
+  publisher: String
+  versions: [Version!]!
+  currentVersion: String!
+  currentSize: String!
+  currentDownloadUrl: String
+  architecture: [Architecture!]!
+  originalPrice: Float!
+  subcategory: String
+  genres: [String!]!
+  tags: [String!]!
+  downloads: Int!
+  rating: Float!
+  reviewsCount: Int!
+  reviews: [Review!]!
+  isActive: Boolean!
+  isFeatured: Boolean!
+  isNewItem: Boolean!
+  isTopRated: Boolean!
+  isPopular: Boolean!
+  isPremium: Boolean!
+  isHot: Boolean!
+  releaseDate: String!
+  lastUpdated: String!
+  instructions: String
+  viewCount: Int!
+  isRecent: Boolean!
+  downloadUrl: String
+  createdAt: String!
+  updatedAt: String!
+}
+
+type Review {
+  id: ID!
+  user: User!
+  rating: Int!
+  title: String!
+  content: String!
+  version: String
+  isVerified: Boolean!
+  helpfulCount: Int!
+  createdAt: String!
+}
+
+type ReviewStats {
+  averageRating: Float!
+  totalReviews: Int!
+  ratingDistribution: RatingDistribution!
+}
+
+type RatingDistribution {
+  one: Int!
+  two: Int!
+  three: Int!
+  four: Int!
+  five: Int!
+}
+
+type ItemsResult {
+  items: [Item!]!
+  pagination: PaginationInfo!
+}
+
+type PaginationInfo {
+  page: Int!
+  limit: Int!
+  totalPages: Int!
+  totalCount: Int!
+  hasNextPage: Boolean!
+  hasPrevPage: Boolean!
+}
+
+type SearchResult {
+  items: [Item!]!
+  totalCount: Int!
+  page: Int!
+  limit: Int!
+  totalPages: Int!
+}
+
+input LoginInput {
+  email: String!
+  password: String!
+}
+
+input RegisterInput {
+  name: String!
+  username: String
+  email: String!
+  password: String!
+}
+
+input PaginationInput {
+  page: Int
+  limit: Int
+}
+
+input SortInput {
+  field: ItemSortBy!
+  order: SortOrder!
+}
+
+input SearchFilters {
+  query: String
+  contentType: ContentType
+  platform: Platform
+  categoryId: ID
+  tags: [String!]
+  minRating: Float
+  isActive: Boolean
+}
+
+type Query {
+  user: User
+  categories(
+    type: CategoryType
+    platform: Platform
+    parentId: ID
+    isActive: Boolean
+    isFeatured: Boolean
+    pagination: PaginationInput
+  ): [Category!]!
+  items(
+    page: Int
+    limit: Int
+    category: String
+    categorySlug: String
+    includeChildren: Boolean
+    contentType: String
+    platform: String
+    subcategory: String
+    genre: String
+    genres: [String!]
+    tag: String
+    tags: [String!]
+    search: String
+    sortBy: ItemSortBy
+  ): ItemsResult!
+  item(id: ID, slug: String): Item
+  featuredItems(limit: Int): [Item!]!
+  newItems(limit: Int): [Item!]!
+  popularItems(limit: Int): [Item!]!
+  topRatedItems(limit: Int): [Item!]!
+  hotItems(limit: Int): [Item!]!
+  searchItems(
+    query: String!
+    filters: SearchFilters
+    pagination: PaginationInput
+    sort: SortInput
+  ): SearchResult!
+  similarApps(
+    contentType: String!
+    categoryId: ID
+    excludeId: ID!
+    limit: Int
+  ): [Item!]!
+  reviews(
+    itemId: ID!
+    pagination: PaginationInput
+    sort: SortInput
+  ): [Review!]!
+  reviewStats(itemId: ID!): ReviewStats!
+}
+
+type Mutation {
+  login(input: LoginInput!): AuthPayload!
+  register(input: RegisterInput!): AuthPayload!
+  logout: LogoutResponse!
+  addFavorite(itemId: ID!): Boolean!
+  removeFavorite(itemId: ID!): Boolean!
+  addBookmark(itemId: ID!): Boolean!
+  removeBookmark(itemId: ID!): Boolean!
+  registerDownload(itemId: ID!): Boolean!
+}
