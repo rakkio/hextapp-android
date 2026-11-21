@@ -55,3 +55,28 @@ mutation RemoveBookmark($itemId: ID!) {
 mutation RegisterDownload($itemId: ID!) {
   registerDownload(itemId: $itemId)
 }
+
+mutation UpdateProfile($input: UpdateProfileInput!) {
+  updateProfile(input: $input) {
+    id
+    name
+    email
+    username
+    avatar
+    bio
+    location
+    favorites
+    bookmarks
+    downloads {
+      app
+      downloadedAt
+    }
+  }
+}
+
+mutation ChangePassword($currentPassword: String!, $newPassword: String!) {
+  changePassword(currentPassword: $currentPassword, newPassword: $newPassword) {
+    success
+    message
+  }
+}

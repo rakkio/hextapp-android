@@ -169,6 +169,7 @@ query GetMe {
     username
     avatar
     bio
+    location
     favorites
     bookmarks
     downloads {

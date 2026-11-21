@@ -5,14 +5,17 @@ import com.apollographql.apollo.api.Optional
 import com.hextapp.android.data.local.TokenStorage
 import com.hextapp.android.graphql.AddBookmarkMutation
 import com.hextapp.android.graphql.AddFavoriteMutation
+import com.hextapp.android.graphql.ChangePasswordMutation
 import com.hextapp.android.graphql.GetMeQuery
 import com.hextapp.android.graphql.LoginMutation
 import com.hextapp.android.graphql.RegisterDownloadMutation
 import com.hextapp.android.graphql.RegisterMutation
 import com.hextapp.android.graphql.RemoveBookmarkMutation
 import com.hextapp.android.graphql.RemoveFavoriteMutation
+import com.hextapp.android.graphql.UpdateProfileMutation
 import com.hextapp.android.graphql.type.LoginInput
 import com.hextapp.android.graphql.type.RegisterInput
+import com.hextapp.android.graphql.type.UpdateProfileInput
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -23,6 +26,8 @@ data class UserSession(
     val email: String,
     val username: String?,
     val avatar: String?,
+    val bio: String?,
+    val location: String?,
     val favorites: Set<String>,
     val bookmarks: Set<String>,
     val downloadsCount: Int
@@ -50,6 +55,8 @@ class AuthRepository(
                 email = user.email,
                 username = user.username,
                 avatar = user.avatar,
+                bio = user.bio,
+                location = user.location,
                 favorites = user.favorites.toSet(),
                 bookmarks = user.bookmarks.toSet(),
                 downloadsCount = user.downloads.size
@@ -74,6 +81,8 @@ class AuthRepository(
             email = user.email,
             username = user.username,
             avatar = user.avatar,
+            bio = null,
+            location = null,
             favorites = user.favorites.toSet(),
             bookmarks = user.bookmarks.toSet(),
             downloadsCount = user.downloads.size
@@ -105,6 +114,8 @@ class AuthRepository(
             email = user.email,
             username = user.username,
             avatar = user.avatar,
+            bio = null,
+            location = null,
             favorites = user.favorites.toSet(),
             bookmarks = user.bookmarks.toSet(),
             downloadsCount = user.downloads.size
@@ -153,5 +164,36 @@ class AuthRepository(
         runCatching {
             apolloClient.mutation(RegisterDownloadMutation(itemId)).execute()
         }
+    }
+
+    suspend fun updateProfile(name: String, bio: String, location: String): Result<UserSession> = runCatching {
+        val response = apolloClient.mutation(
+            UpdateProfileMutation(
+                UpdateProfileInput(
+                    name = Optional.present(name),
+                    bio = Optional.present(bio),
+                    location = Optional.present(location),
+                )
+            )
+        ).execute()
+        if (response.hasErrors()) throw IllegalStateException(response.errors?.firstOrNull()?.message ?: "Error al actualizar")
+        val user = response.data?.updateProfile ?: throw IllegalStateException("Respuesta vacía")
+        val current = _session.value ?: throw IllegalStateException("No hay sesión activa")
+        val updated = current.copy(
+            name = user.name,
+            bio = user.bio,
+            location = user.location,
+            avatar = user.avatar,
+        )
+        _session.value = updated
+        updated
+    }
+
+    suspend fun changePassword(currentPassword: String, newPassword: String): Result<Boolean> = runCatching {
+        val response = apolloClient.mutation(
+            ChangePasswordMutation(currentPassword = currentPassword, newPassword = newPassword)
+        ).execute()
+        if (response.hasErrors()) throw IllegalStateException(response.errors?.firstOrNull()?.message ?: "Error al cambiar contraseña")
+        response.data?.changePassword?.success ?: false
     }
 }
