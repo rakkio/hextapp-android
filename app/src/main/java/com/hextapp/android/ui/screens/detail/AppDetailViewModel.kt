@@ -121,7 +121,7 @@ class AppDetailViewModel(
                                 .onSuccess { data -> reviewsFlow.value = data?.reviews.orEmpty() }
                         }
                     } else {
-                        errorFlow.value = "APK no encontrada"
+                        errorFlow.value = "APK no encontrada ($slug)"
                     }
                 }
                 .onFailure {

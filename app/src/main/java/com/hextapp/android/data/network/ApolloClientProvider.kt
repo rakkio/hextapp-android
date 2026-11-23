@@ -63,8 +63,8 @@ class ApolloClientProvider(private val tokenStorage: TokenStorage) {
 
         OkHttpClient.Builder()
             .addInterceptor(authInterceptor)
-            .connectTimeout(10, TimeUnit.SECONDS)
-            .readTimeout(15, TimeUnit.SECONDS)
+            .connectTimeout(15, TimeUnit.SECONDS)
+            .readTimeout(30, TimeUnit.SECONDS)
             .build()
     }
 

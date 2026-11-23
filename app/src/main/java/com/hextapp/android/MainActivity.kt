@@ -1,5 +1,6 @@
 package com.hextapp.android
 
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -267,7 +268,7 @@ private fun HextappRoot(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = onToggleTheme,
-                    onAppClick = { slug -> navController.navigate("detail/$slug") },
+                    onAppClick = { slug -> navController.navigate("detail/${Uri.encode(slug)}") },
                     onSeeAllGames = { navController.navigate(BottomTab.Games.route) },
                     onSeeAllExplore = { navController.navigate(BottomTab.Explore.route) }
                 )
@@ -278,7 +279,7 @@ private fun HextappRoot(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = onToggleTheme,
-                    onAppClick = { slug -> navController.navigate("detail/$slug") },
+                    onAppClick = { slug -> navController.navigate("detail/${Uri.encode(slug)}") },
                     onSearchClick = { navController.navigate(BottomTab.Explore.route) }
                 )
             }
@@ -305,7 +306,7 @@ private fun HextappRoot(
                     viewModel = vm,
                     isDarkTheme = isDarkTheme,
                     onToggleTheme = onToggleTheme,
-                    onAppClick = { slug -> navController.navigate("detail/$slug") },
+                    onAppClick = { slug -> navController.navigate("detail/${Uri.encode(slug)}") },
                     onGoToProfile = { navController.navigate(BottomTab.Profile.route) },
                     onGoToExplore = { navController.navigate(BottomTab.Explore.route) }
                 )
@@ -324,7 +325,7 @@ private fun HextappRoot(
                 route = "detail/{slug}",
                 arguments = listOf(navArgument("slug") { type = NavType.StringType })
             ) { entry ->
-                val slug = entry.arguments?.getString("slug").orEmpty()
+                val slug = Uri.decode(entry.arguments?.getString("slug").orEmpty())
                 val vm: AppDetailViewModel = viewModel(
                     key = "detail_$slug",
                     factory = AppDetailViewModel.factory(
@@ -337,7 +338,7 @@ private fun HextappRoot(
                 AppDetailScreen(
                     viewModel = vm,
                     onBack = { navController.popBackStack() },
-                    onAppClick = { nextSlug -> navController.navigate("detail/$nextSlug") }
+                    onAppClick = { nextSlug -> navController.navigate("detail/${Uri.encode(nextSlug)}") }
                 )
             }
         }
