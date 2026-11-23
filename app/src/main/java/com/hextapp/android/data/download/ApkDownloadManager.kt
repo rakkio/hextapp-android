@@ -61,6 +61,13 @@ data class LocalApkFile(
     val isInstalled: Boolean = false
 )
 
+data class VaultItem(
+    val file: File,
+    val name: String,
+    val sizeBytes: Long,
+    val lastModified: Long
+)
+
 object ApkDownloadValidation {
     const val MIN_VALID_APK_BYTES = 50 * 1024L
 
@@ -116,6 +123,9 @@ class ApkDownloadManager(
 
     private val _localApks = MutableStateFlow<List<LocalApkFile>>(emptyList())
     val localApks: StateFlow<List<LocalApkFile>> = _localApks.asStateFlow()
+
+    private val _vaultItems = MutableStateFlow<List<VaultItem>>(emptyList())
+    val vaultItems: StateFlow<List<VaultItem>> = _vaultItems.asStateFlow()
 
     companion object {
         private const val INSTALLED_TTL_MS = 24L * 60L * 60L * 1000L // 24 hours after install
@@ -203,6 +213,47 @@ class ApkDownloadManager(
     private fun extractedDirectory(name: String): File {
         val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
         return File(File(base, "extracted"), sanitizeFilename(name))
+    }
+
+    private fun vaultDirectory(): File {
+        val base = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS) ?: context.filesDir
+        return File(base, "nexus_vault").apply { mkdirs() }
+    }
+
+    fun refreshVault() {
+        val items = vaultDirectory().listFiles().orEmpty()
+            .filter { it.isFile && (it.name.endsWith(".nx6r", ignoreCase = true) || it.name.endsWith(".nxs6", ignoreCase = true)) }
+            .map { VaultItem(file = it, name = it.nameWithoutExtension, sizeBytes = it.length(), lastModified = it.lastModified()) }
+            .sortedByDescending { it.lastModified }
+        _vaultItems.value = items
+    }
+
+    suspend fun archiveToVault(sourceFile: File, deleteOriginal: Boolean = true): Result<File> = withContext(Dispatchers.IO) {
+        runCatching {
+            val outFile = File(vaultDirectory(), "${sanitizeFilename(sourceFile.nameWithoutExtension)}.nx6r")
+            if (sourceFile.name.endsWith(".nx6r", ignoreCase = true) || sourceFile.name.endsWith(".nxs6", ignoreCase = true)) {
+                sourceFile.copyTo(outFile, overwrite = true)
+            } else {
+                NexusEngine.packNx6r(sourceFile, outFile, preset = 4)
+            }
+            if (deleteOriginal && sourceFile.exists() && sourceFile.canonicalPath != outFile.canonicalPath) {
+                sourceFile.delete()
+            }
+            refreshLocalApks()
+            refreshVault()
+            outFile
+        }
+    }
+
+    suspend fun restoreFromVault(activityContext: Context, vaultFile: File): Result<String> {
+        return installWithNexus(activityContext, vaultFile)
+    }
+
+    fun deleteFromVault(vaultFile: File) {
+        if (vaultFile.exists()) {
+            vaultFile.delete()
+            refreshVault()
+        }
     }
 
     fun refreshLocalApks() {
@@ -546,6 +597,9 @@ class ApkDownloadManager(
                     val extracted = NexusEngine.extractArchive(file, outDir) { pct, entry ->
                         if (itemId != null) updateState(itemId, DownloadState.Extracting(pct, entry))
                     }
+                    if (extracted.obbFiles.isNotEmpty()) {
+                        NexusEngine.installObbFiles(extracted.obbFiles)
+                    }
                     file.delete()
                     refreshLocalApks()
                     if (itemId != null) updateState(itemId, DownloadState.Installing)
@@ -559,6 +613,7 @@ class ApkDownloadManager(
                     val extracted = NexusEngine.extractNxs6(file, outDir, activityContext) { pct, entry ->
                         if (itemId != null) updateState(itemId, DownloadState.Extracting(pct, entry))
                     }
+                    val obbCount = if (extracted.obbFiles.isNotEmpty()) NexusEngine.installObbFiles(extracted.obbFiles) else 0
                     when {
                         extracted.apkFiles.size > 1 -> {
                             file.delete()
@@ -566,7 +621,7 @@ class ApkDownloadManager(
                             if (itemId != null) updateState(itemId, DownloadState.Installing)
                             NexusEngine.installSplitApks(activityContext, extracted.apkFiles).getOrThrow()
                             if (itemId != null) updateState(itemId, DownloadState.Idle)
-                            "Instalando ${extracted.apkFiles.size} APKs desde NXS6..."
+                            if (obbCount > 0) "Instalando ${extracted.apkFiles.size} APKs + $obbCount OBB desde NX6R..." else "Instalando ${extracted.apkFiles.size} APKs desde NXS6..."
                         }
                         extracted.apkFiles.size == 1 -> {
                             val cleanApk = promoteExtractedApk(extracted.apkFiles.first(), file, outDir)

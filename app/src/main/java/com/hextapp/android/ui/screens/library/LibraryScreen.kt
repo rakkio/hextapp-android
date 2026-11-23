@@ -19,6 +19,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Android
 import androidx.compose.material.icons.outlined.DeleteOutline
 import androidx.compose.material.icons.outlined.InstallMobile
+import androidx.compose.material.icons.outlined.Inventory2
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -64,7 +65,12 @@ fun LibraryScreen(
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Descargas (${state.localApks.size})", "Favoritos", "Guardados")
+    val tabs = listOf(
+        "Descargas (${state.localApks.size})",
+        "Bóveda (${state.vaultItems.size})",
+        "Favoritos",
+        "Guardados"
+    )
 
     Column(modifier = Modifier.fillMaxSize()) {
         HextappTopBar(
@@ -211,6 +217,18 @@ fun LibraryScreen(
                                         Spacer(Modifier.width(6.dp))
                                         Text(if (apk.archiveKind == ArchiveKind.GENERIC_ZIP) "Extraer" else "Instalar")
                                     }
+                                    if (apk.archiveKind != ArchiveKind.GENERIC_ZIP) {
+                                        IconButton(
+                                            onClick = { viewModel.archiveToVault(apk.file) },
+                                            enabled = !state.isArchivingToVault
+                                        ) {
+                                            Icon(
+                                                Icons.Outlined.Inventory2,
+                                                contentDescription = "Archivar en Bóveda NX6R",
+                                                tint = HextSecondary
+                                            )
+                                        }
+                                    }
                                     IconButton(onClick = { viewModel.deleteApk(apk.file) }) {
                                         Icon(
                                             Icons.Outlined.DeleteOutline,
@@ -226,6 +244,99 @@ fun LibraryScreen(
             }
 
             1 -> {
+                Column(modifier = Modifier.fillMaxSize()) {
+                    if (state.isArchivingToVault) {
+                        LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
+                    }
+                    if (state.vaultItems.isEmpty()) {
+                        EmptyState(
+                            message = "Tu Bóveda NX6R está vacía. Archiva APKs o XAPKs desde Descargas para ahorrar ~35% de espacio y reinstalarlos sin gastar datos.",
+                            ctaLabel = "Ver Descargas",
+                            onCta = { selectedTab = 0 }
+                        )
+                    } else {
+                        val vaultBytes = state.vaultItems.sumOf { it.sizeBytes }
+                        LazyColumn(
+                            contentPadding = PaddingValues(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            item {
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Column(modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp)) {
+                                        Text(
+                                            "Bóveda Nexus NX6R",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                        Text(
+                                            "${state.vaultItems.size} paquete(s) archivados • ${formatBytes(vaultBytes)}",
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold
+                                        )
+                                    }
+                                }
+                            }
+                            items(state.vaultItems, key = { it.file.absolutePath }) { item ->
+                                Surface(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.surface,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                                    modifier = Modifier.fillMaxWidth()
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(14.dp),
+                                        verticalAlignment = Alignment.CenterVertically
+                                    ) {
+                                        Icon(
+                                            imageVector = Icons.Outlined.Inventory2,
+                                            contentDescription = null,
+                                            tint = HextSecondary
+                                        )
+                                        Spacer(Modifier.width(12.dp))
+                                        Column(modifier = Modifier.weight(1f)) {
+                                            Text(
+                                                text = item.name.replace('-', ' ').replace('_', ' ')
+                                                    .replaceFirstChar { it.uppercase() },
+                                                style = MaterialTheme.typography.titleMedium,
+                                                maxLines = 1,
+                                                overflow = TextOverflow.Ellipsis
+                                            )
+                                            Text(
+                                                text = "${formatBytes(item.sizeBytes)} • Archivo .nx6r",
+                                                style = MaterialTheme.typography.labelMedium,
+                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            )
+                                        }
+                                        Button(
+                                            onClick = { viewModel.restoreFromVault(context, item.file) },
+                                            colors = ButtonDefaults.buttonColors(containerColor = HextPrimary),
+                                            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)
+                                        ) {
+                                            Icon(Icons.Outlined.InstallMobile, contentDescription = null)
+                                            Spacer(Modifier.width(6.dp))
+                                            Text("Restaurar")
+                                        }
+                                        IconButton(onClick = { viewModel.deleteFromVault(item.file) }) {
+                                            Icon(
+                                                Icons.Outlined.DeleteOutline,
+                                                contentDescription = "Eliminar de Bóveda",
+                                                tint = MaterialTheme.colorScheme.error
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            2 -> {
                 if (state.session == null) {
                     LoginPrompt(onGoToProfile)
                 } else if (state.favoriteItems.isEmpty()) {
@@ -246,7 +357,7 @@ fun LibraryScreen(
                 }
             }
 
-            2 -> {
+            3 -> {
                 if (state.session == null) {
                     LoginPrompt(onGoToProfile)
                 } else if (state.bookmarkItems.isEmpty()) {

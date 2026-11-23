@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.hextapp.android.data.download.ApkDownloadManager
 import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.data.download.LocalApkFile
+import com.hextapp.android.data.download.VaultItem
 import com.hextapp.android.data.repository.AuthRepository
 import com.hextapp.android.data.repository.CatalogRepository
 import com.hextapp.android.data.repository.UserSession
@@ -24,8 +25,10 @@ data class LibraryUiState(
     val favoriteItems: List<ItemSummary> = emptyList(),
     val bookmarkItems: List<ItemSummary> = emptyList(),
     val localApks: List<LocalApkFile> = emptyList(),
+    val vaultItems: List<VaultItem> = emptyList(),
     val activeDownloads: Map<String, DownloadState> = emptyMap(),
-    val isLoading: Boolean = false
+    val isLoading: Boolean = false,
+    val isArchivingToVault: Boolean = false
 )
 
 class LibraryViewModel(
@@ -36,14 +39,30 @@ class LibraryViewModel(
 
     private val allAndroidItems = MutableStateFlow<List<ItemSummary>>(emptyList())
     private val isLoading = MutableStateFlow(false)
+    private val isArchiving = MutableStateFlow(false)
 
     val uiState: StateFlow<LibraryUiState> = combine(
         authRepository.session,
         allAndroidItems,
         apkDownloadManager.localApks,
+        apkDownloadManager.vaultItems,
         apkDownloadManager.downloads,
-        isLoading
-    ) { session, catalog, localApks, downloads, loading ->
+        isLoading,
+        isArchiving
+    ) { values ->
+        @Suppress("UNCHECKED_CAST")
+        val session = values[0] as UserSession?
+        @Suppress("UNCHECKED_CAST")
+        val catalog = values[1] as List<ItemSummary>
+        @Suppress("UNCHECKED_CAST")
+        val localApks = values[2] as List<LocalApkFile>
+        @Suppress("UNCHECKED_CAST")
+        val vaultItems = values[3] as List<VaultItem>
+        @Suppress("UNCHECKED_CAST")
+        val downloads = values[4] as Map<String, DownloadState>
+        val loading = values[5] as Boolean
+        val archiving = values[6] as Boolean
+
         val favIds = session?.favorites.orEmpty()
         val bmIds = session?.bookmarks.orEmpty()
         val inProgress = downloads.filterValues {
@@ -54,8 +73,10 @@ class LibraryViewModel(
             favoriteItems = catalog.filter { favIds.contains(it.id) },
             bookmarkItems = catalog.filter { bmIds.contains(it.id) },
             localApks = localApks,
+            vaultItems = vaultItems,
             activeDownloads = inProgress,
-            isLoading = loading
+            isLoading = loading,
+            isArchivingToVault = archiving
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())
 
@@ -65,6 +86,7 @@ class LibraryViewModel(
 
     fun refresh() {
         apkDownloadManager.refreshLocalApks()
+        apkDownloadManager.refreshVault()
         viewModelScope.launch {
             isLoading.value = true
             catalogRepository.getItems(page = 1, limit = 100).onSuccess { paged ->
@@ -72,6 +94,24 @@ class LibraryViewModel(
             }
             isLoading.value = false
         }
+    }
+
+    fun archiveToVault(file: File) {
+        viewModelScope.launch {
+            isArchiving.value = true
+            apkDownloadManager.archiveToVault(file, deleteOriginal = true)
+            isArchiving.value = false
+        }
+    }
+
+    fun restoreFromVault(context: Context, file: File) {
+        viewModelScope.launch {
+            apkDownloadManager.restoreFromVault(context, file)
+        }
+    }
+
+    fun deleteFromVault(file: File) {
+        apkDownloadManager.deleteFromVault(file)
     }
 
     fun installApk(context: Context, file: File) {
