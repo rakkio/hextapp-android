@@ -546,22 +546,13 @@ private fun DownloadActionButton(
             }
         }
 
-        if (state is DownloadState.Downloading || state is DownloadState.Extracting) {
-            Spacer(Modifier.height(8.dp))
-            val pct = when (state) {
-                is DownloadState.Downloading -> state.percent
-                is DownloadState.Extracting -> state.percent
-                else -> 0
-            }
-            if (pct > 0) {
-                LinearProgressIndicator(
-                    progress = { pct / 100f },
-                    modifier = Modifier.fillMaxWidth(),
-                    color = HextSecondary
-                )
-            } else {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = HextSecondary)
-            }
+        if (state is DownloadState.Resolving ||
+            state is DownloadState.Downloading ||
+            state is DownloadState.Extracting ||
+            state is DownloadState.Installing
+        ) {
+            Spacer(Modifier.height(10.dp))
+            NexusPipelineStatusCard(state = state)
         }
 
         if (state is DownloadState.Error) {
@@ -573,6 +564,93 @@ private fun DownloadActionButton(
                     contentPadding = PaddingValues(0.dp)
                 ) {
                     Text("Abrir enlace en navegador", color = MaterialTheme.colorScheme.secondary)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun NexusPipelineStatusCard(state: DownloadState) {
+    val activeStep = when (state) {
+        is DownloadState.Resolving -> 0
+        is DownloadState.Downloading -> 0
+        is DownloadState.Extracting -> 1
+        is DownloadState.Installing -> 3
+        is DownloadState.Completed -> 4
+        else -> -1
+    }
+    val steps = listOf("Descarga", "Nexus NX6R", "SHA-256", "Instalar")
+
+    Surface(
+        shape = RoundedCornerShape(14.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.7f),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Motor Nexus • NX6R / NXS6",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = HextSecondary
+                )
+                val pct = when (state) {
+                    is DownloadState.Downloading -> state.percent
+                    is DownloadState.Extracting -> state.percent
+                    else -> 0
+                }
+                if (pct > 0) {
+                    Text(
+                        text = "$pct%",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+
+            if (state is DownloadState.Downloading || state is DownloadState.Extracting) {
+                val pct = when (state) {
+                    is DownloadState.Downloading -> state.percent
+                    is DownloadState.Extracting -> state.percent
+                    else -> 0
+                }
+                if (pct > 0) {
+                    LinearProgressIndicator(
+                        progress = { pct / 100f },
+                        modifier = Modifier.fillMaxWidth(),
+                        color = HextSecondary
+                    )
+                } else {
+                    LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = HextSecondary)
+                }
+            } else {
+                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = HextPrimary)
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                steps.forEachIndexed { idx, label ->
+                    val done = idx < activeStep
+                    val current = idx == activeStep
+                    Text(
+                        text = if (done) "✓ $label" else label,
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = if (current || done) FontWeight.Bold else FontWeight.Normal,
+                        color = when {
+                            done -> HextSecondary
+                            current -> MaterialTheme.colorScheme.primary
+                            else -> MaterialTheme.colorScheme.onSurfaceVariant
+                        }
+                    )
                 }
             }
         }

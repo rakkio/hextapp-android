@@ -152,8 +152,8 @@ fun LibraryScreen(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Column {
-                                        Text("Espacio usado", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                                        Text(formatBytes(totalSizeBytes), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                                        Text("Espacio usado • Motor Nexus NX6R", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                        Text("${formatBytes(totalSizeBytes)} • Limpieza auto 24h tras instalar", style = MaterialTheme.typography.titleSmall, fontWeight = FontWeight.Bold)
                                     }
                                     TextButton(onClick = {
                                         state.localApks.forEach { viewModel.deleteApk(it.file) }

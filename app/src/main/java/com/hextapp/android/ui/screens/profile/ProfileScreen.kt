@@ -573,6 +573,13 @@ fun ProfileScreen(
                     )
                     HorizontalDivider(color = MaterialTheme.colorScheme.outline)
                     SettingsRow(
+                        icon = Icons.Outlined.Info,
+                        title = "Motor Nexus integrado",
+                        subtitle = "NX6R / NXS6 • Verificación SHA-256 • Auto-limpieza 24h",
+                        iconTint = HextPrimary
+                    )
+                    HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+                    SettingsRow(
                         icon = Icons.Outlined.SystemUpdate,
                         title = "Auto-actualizar app",
                         subtitle = if (autoUpdateEnabled)
