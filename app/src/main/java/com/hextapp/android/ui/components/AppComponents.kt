@@ -12,6 +12,7 @@ import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -62,11 +63,13 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
+import com.hextapp.android.R
 import com.hextapp.android.graphql.fragment.ItemSummary
 import com.hextapp.android.ui.theme.HextPrimary
 import com.hextapp.android.ui.theme.HextSecondary
@@ -147,13 +150,15 @@ fun HextappTopBar(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
-                Box(contentAlignment = Alignment.Center) {
-                    HextappHexLogo()
-                    Text(
-                        text = "H",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.ExtraBold,
-                        color = MaterialTheme.colorScheme.primary
+                Surface(
+                    shape = RoundedCornerShape(10.dp),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                ) {
+                    Image(
+                        painter = painterResource(id = R.drawable.hextapp_logo),
+                        contentDescription = "Hextapp",
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.size(36.dp)
                     )
                 }
                 Spacer(Modifier.width(12.dp))

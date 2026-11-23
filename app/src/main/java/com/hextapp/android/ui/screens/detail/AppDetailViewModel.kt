@@ -137,10 +137,18 @@ class AppDetailViewModel(
         val currentState = uiState.value.downloadState
 
         if (currentState is DownloadState.Completed) {
-            apkDownloadManager.installApk(context, currentState.file)
+            viewModelScope.launch {
+                apkDownloadManager.installWithNexus(context, currentState.file, summary.id)
+                    .onSuccess { msg -> messageFlow.value = msg }
+                    .onFailure { err -> messageFlow.value = err.message ?: "Error al instalar" }
+            }
             return
         }
-        if (currentState is DownloadState.Downloading || currentState is DownloadState.Resolving) {
+        if (currentState is DownloadState.Downloading ||
+            currentState is DownloadState.Resolving ||
+            currentState is DownloadState.Extracting ||
+            currentState is DownloadState.Installing
+        ) {
             return
         }
 
@@ -149,13 +157,58 @@ class AppDetailViewModel(
             ?: item.versions.firstOrNull { it.isActive }?.downloadLinks?.primary?.url
 
         viewModelScope.launch {
-            apkDownloadManager.downloadApk(
+            val downloadedFile = apkDownloadManager.downloadApk(
                 itemId = summary.id,
+                itemName = summary.name,
                 slug = summary.slug,
                 version = summary.currentVersion,
                 fallbackUrl = fallbackUrl,
                 onRegistered = { authRepository.registerDownload(summary.id) }
             )
+            if (downloadedFile != null) {
+                apkDownloadManager.installWithNexus(context, downloadedFile, summary.id)
+                    .onSuccess { msg -> messageFlow.value = msg }
+                    .onFailure { err -> messageFlow.value = err.message ?: "Error al instalar" }
+            }
+        }
+    }
+
+    fun cancelDownload() {
+        val itemId = itemFlow.value?.itemSummary?.id ?: return
+        apkDownloadManager.cancelDownload(itemId)
+    }
+
+    fun dismissBrowserDownload() {
+        val itemId = itemFlow.value?.itemSummary?.id ?: return
+        apkDownloadManager.dismissRequiresBrowser(itemId)
+    }
+
+    fun onWebViewDownloadCaptured(
+        context: Context,
+        url: String,
+        cookie: String?,
+        userAgent: String?,
+        referer: String?
+    ) {
+        val item = itemFlow.value ?: return
+        val summary = item.itemSummary
+        viewModelScope.launch {
+            val downloadedFile = apkDownloadManager.downloadFromWebViewUrl(
+                itemId = summary.id,
+                itemName = summary.name,
+                slug = summary.slug,
+                version = summary.currentVersion,
+                url = url,
+                cookie = cookie,
+                userAgent = userAgent,
+                referer = referer,
+                onRegistered = { authRepository.registerDownload(summary.id) }
+            )
+            if (downloadedFile != null) {
+                apkDownloadManager.installWithNexus(context, downloadedFile, summary.id)
+                    .onSuccess { msg -> messageFlow.value = msg }
+                    .onFailure { err -> messageFlow.value = err.message ?: "Error al instalar" }
+            }
         }
     }
 

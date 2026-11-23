@@ -26,7 +26,7 @@ class AppContainer(application: Application) {
 
     val catalogRepository = CatalogRepository(apolloProvider.apolloClient)
     val authRepository = AuthRepository(apolloProvider.apolloClient, tokenStorage)
-    val apkDownloadManager = ApkDownloadManager(application, apolloProvider.okHttpClient)
+    val apkDownloadManager = ApkDownloadManager(application, apolloProvider.downloadOkHttpClient)
     val appUpdateManager = AppUpdateManager(
         context = application,
         okHttpClient = apolloProvider.publicOkHttpClient,

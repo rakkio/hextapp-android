@@ -95,6 +95,21 @@ type LogoutResponse {
   message: String!
 }
 
+type PasswordResetResponse {
+  success: Boolean!
+  message: String!
+  resetToken: String
+  resetUrl: String
+}
+
+input UpdateProfileInput {
+  name: String
+  username: String
+  bio: String
+  location: String
+  avatar: String
+}
+
 type Category {
   id: ID!
   name: String!
@@ -359,6 +374,8 @@ type Mutation {
   login(input: LoginInput!): AuthPayload!
   register(input: RegisterInput!): AuthPayload!
   logout: LogoutResponse!
+  changePassword(currentPassword: String!, newPassword: String!): PasswordResetResponse!
+  updateProfile(input: UpdateProfileInput!): User!
   addFavorite(itemId: ID!): Boolean!
   removeFavorite(itemId: ID!): Boolean!
   addBookmark(itemId: ID!): Boolean!

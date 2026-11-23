@@ -1,6 +1,7 @@
 package com.hextapp.android.ui.screens.detail
 
 import android.content.Intent
+import android.net.Uri
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -72,6 +73,7 @@ import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.ui.components.AppCarouselCard
 import com.hextapp.android.ui.components.AppIconImage
 import com.hextapp.android.ui.components.RatingBar
+import com.hextapp.android.ui.components.WebDownloadDialog
 import com.hextapp.android.ui.components.formatBytes
 import com.hextapp.android.ui.components.formatDownloads
 import com.hextapp.android.ui.theme.HextPrimary
@@ -251,7 +253,11 @@ fun AppDetailScreen(
 
                             DownloadActionButton(
                                 state = state.downloadState,
-                                onClick = { viewModel.onDownloadOrInstall(context) }
+                                onClick = { viewModel.onDownloadOrInstall(context) },
+                                onCancel = viewModel::cancelDownload,
+                                onOpenInBrowser = { url ->
+                                    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+                                }
                             )
                         }
                     }
@@ -444,62 +450,112 @@ fun AppDetailScreen(
                         }
                     }
                 }
+                val browserState = state.downloadState as? DownloadState.RequiresBrowser
+                if (browserState != null) {
+                    WebDownloadDialog(
+                        url = browserState.url,
+                        itemName = browserState.itemName,
+                        onDismiss = viewModel::dismissBrowserDownload,
+                        onDownloadIntercepted = { downloadUrl, cookie, userAgent, referer ->
+                            viewModel.onWebViewDownloadCaptured(context, downloadUrl, cookie, userAgent, referer)
+                        }
+                    )
+                }
             }
         }
     }
 }
 
 @Composable
-private fun DownloadActionButton(state: DownloadState, onClick: () -> Unit) {
+private fun DownloadActionButton(
+    state: DownloadState,
+    onClick: () -> Unit,
+    onCancel: () -> Unit,
+    onOpenInBrowser: (String) -> Unit
+) {
     Column(modifier = Modifier.fillMaxWidth()) {
-        Button(
-            onClick = onClick,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = if (state is DownloadState.Completed) HextSecondary else HextPrimary,
-                contentColor = Color.White
-            ),
-            shape = RoundedCornerShape(16.dp),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(52.dp)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            when (state) {
-                is DownloadState.Idle -> {
-                    Icon(Icons.Outlined.Download, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Descargar APK", style = MaterialTheme.typography.titleMedium)
+            Button(
+                onClick = onClick,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (state is DownloadState.Completed) HextSecondary else HextPrimary,
+                    contentColor = Color.White
+                ),
+                shape = RoundedCornerShape(16.dp),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(52.dp)
+            ) {
+                when (state) {
+                    is DownloadState.Idle, is DownloadState.RequiresBrowser -> {
+                        Icon(Icons.Outlined.Download, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Descargar APK", style = MaterialTheme.typography.titleMedium)
+                    }
+                    is DownloadState.Resolving -> {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Preparando enlace...", style = MaterialTheme.typography.titleMedium)
+                    }
+                    is DownloadState.Downloading -> {
+                        Text(
+                            text = if (state.totalBytes > 0) {
+                                "Descargando ${state.percent}% (${formatBytes(state.bytesRead)})"
+                            } else {
+                                "Descargando (${formatBytes(state.bytesRead)})"
+                            },
+                            style = MaterialTheme.typography.titleMedium
+                        )
+                    }
+                    is DownloadState.Extracting -> {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Descomprimiendo ${state.percent}%...", style = MaterialTheme.typography.titleMedium)
+                    }
+                    is DownloadState.Installing -> {
+                        CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Instalando paquete...", style = MaterialTheme.typography.titleMedium)
+                    }
+                    is DownloadState.Completed -> {
+                        Icon(Icons.Outlined.InstallMobile, contentDescription = null)
+                        Spacer(Modifier.width(8.dp))
+                        Text("Instalar APK", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                    }
+                    is DownloadState.Error -> {
+                        Text("Reintentar descarga", style = MaterialTheme.typography.titleMedium)
+                    }
                 }
-                is DownloadState.Resolving -> {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Color.White, strokeWidth = 2.dp)
-                    Spacer(Modifier.width(10.dp))
-                    Text("Preparando enlace...", style = MaterialTheme.typography.titleMedium)
-                }
-                is DownloadState.Downloading -> {
-                    Text(
-                        text = if (state.totalBytes > 0) {
-                            "Descargando ${state.percent}% (${formatBytes(state.bytesRead)})"
-                        } else {
-                            "Descargando (${formatBytes(state.bytesRead)})"
-                        },
-                        style = MaterialTheme.typography.titleMedium
-                    )
-                }
-                is DownloadState.Completed -> {
-                    Icon(Icons.Outlined.InstallMobile, contentDescription = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text("Instalar APK", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                }
-                is DownloadState.Error -> {
-                    Text("Reintentar descarga", style = MaterialTheme.typography.titleMedium)
+            }
+
+            if (state is DownloadState.Downloading || state is DownloadState.Resolving) {
+                Surface(
+                    shape = RoundedCornerShape(16.dp),
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
+                    modifier = Modifier.size(52.dp)
+                ) {
+                    IconButton(onClick = onCancel, modifier = Modifier.fillMaxSize()) {
+                        Icon(Icons.Rounded.Close, contentDescription = "Cancelar descarga")
+                    }
                 }
             }
         }
 
-        if (state is DownloadState.Downloading) {
+        if (state is DownloadState.Downloading || state is DownloadState.Extracting) {
             Spacer(Modifier.height(8.dp))
-            if (state.totalBytes > 0) {
+            val pct = when (state) {
+                is DownloadState.Downloading -> state.percent
+                is DownloadState.Extracting -> state.percent
+                else -> 0
+            }
+            if (pct > 0) {
                 LinearProgressIndicator(
-                    progress = { state.percent / 100f },
+                    progress = { pct / 100f },
                     modifier = Modifier.fillMaxWidth(),
                     color = HextSecondary
                 )
@@ -511,6 +567,14 @@ private fun DownloadActionButton(state: DownloadState, onClick: () -> Unit) {
         if (state is DownloadState.Error) {
             Spacer(Modifier.height(6.dp))
             Text(text = state.message, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.labelMedium)
+            if (!state.fallbackUrl.isNullOrBlank()) {
+                TextButton(
+                    onClick = { onOpenInBrowser(state.fallbackUrl) },
+                    contentPadding = PaddingValues(0.dp)
+                ) {
+                    Text("Abrir enlace en navegador", color = MaterialTheme.colorScheme.secondary)
+                }
+            }
         }
     }
 }

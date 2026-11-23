@@ -75,11 +75,17 @@ class LibraryViewModel(
     }
 
     fun installApk(context: Context, file: File) {
-        apkDownloadManager.installApk(context, file)
+        viewModelScope.launch {
+            apkDownloadManager.installWithNexus(context, file)
+        }
     }
 
     fun deleteApk(file: File) {
         apkDownloadManager.deleteLocalApk(file)
+    }
+
+    fun cancelDownload(itemId: String) {
+        apkDownloadManager.cancelDownload(itemId)
     }
 
     companion object {

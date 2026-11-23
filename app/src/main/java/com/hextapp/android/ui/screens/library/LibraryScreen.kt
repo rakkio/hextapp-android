@@ -44,6 +44,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hextapp.android.data.download.DownloadState
+import com.hextapp.android.data.nexus.ArchiveKind
 import com.hextapp.android.ui.components.AppListRow
 import com.hextapp.android.ui.components.HextappTopBar
 import com.hextapp.android.ui.components.formatBytes
@@ -99,7 +100,7 @@ fun LibraryScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         if (state.activeDownloads.isNotEmpty()) {
-                            items(state.activeDownloads.entries.toList(), key = { "active_${it.key}" }) { (_, dlState) ->
+                            items(state.activeDownloads.entries.toList(), key = { "active_${it.key}" }) { (itemId, dlState) ->
                                 Surface(
                                     shape = RoundedCornerShape(16.dp),
                                     color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.45f),
@@ -108,12 +109,24 @@ fun LibraryScreen(
                                 ) {
                                     Column(modifier = Modifier.padding(14.dp)) {
                                         val percent = (dlState as? DownloadState.Downloading)?.percent ?: 0
-                                        Text(
-                                            text = if (dlState is DownloadState.Resolving) "Preparando descarga..." else "Descargando APK ($percent%)",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.SemiBold
-                                        )
-                                        Spacer(Modifier.height(8.dp))
+                                        Row(
+                                            modifier = Modifier.fillMaxWidth(),
+                                            horizontalArrangement = Arrangement.SpaceBetween,
+                                            verticalAlignment = Alignment.CenterVertically
+                                        ) {
+                                            Text(
+                                                text = if (dlState is DownloadState.Resolving) "Preparando descarga..." else "Descargando APK ($percent%)",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.SemiBold
+                                            )
+                                            TextButton(
+                                                onClick = { viewModel.cancelDownload(itemId) },
+                                                contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                                            ) {
+                                                Text("Cancelar", color = MaterialTheme.colorScheme.error)
+                                            }
+                                        }
+                                        Spacer(Modifier.height(4.dp))
                                         if (dlState is DownloadState.Downloading && percent > 0) {
                                             LinearProgressIndicator(
                                                 progress = { percent / 100f },
@@ -170,15 +183,23 @@ fun LibraryScreen(
                                     Spacer(Modifier.width(12.dp))
                                     Column(modifier = Modifier.weight(1f)) {
                                         Text(
-                                            text = apk.name,
+                                            text = apk.name.replace('-', ' ').replace('_', ' ')
+                                                .replaceFirstChar { it.uppercase() },
                                             style = MaterialTheme.typography.titleMedium,
                                             maxLines = 1,
                                             overflow = TextOverflow.Ellipsis
                                         )
+                                        val kindLabel = when (apk.archiveKind) {
+                                            ArchiveKind.NXS6_ARCHIVE -> "Archivo NXS6 (Nexus)"
+                                            ArchiveKind.SPLIT_APKS -> "Paquete dividido (Nexus)"
+                                            ArchiveKind.ZIP_WITH_SINGLE_APK -> "ZIP con APK"
+                                            ArchiveKind.GENERIC_ZIP -> "Archivo ZIP"
+                                            ArchiveKind.SINGLE_APK -> if (apk.isInstalled) "Instalada ✓ (se limpia en 24h)" else "APK listo para instalar"
+                                        }
                                         Text(
-                                            text = formatBytes(apk.sizeBytes),
+                                            text = "${formatBytes(apk.sizeBytes)} • $kindLabel",
                                             style = MaterialTheme.typography.labelMedium,
-                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                            color = if (apk.isInstalled) HextSecondary else MaterialTheme.colorScheme.onSurfaceVariant
                                         )
                                     }
                                     Button(
@@ -188,7 +209,7 @@ fun LibraryScreen(
                                     ) {
                                         Icon(Icons.Outlined.InstallMobile, contentDescription = null)
                                         Spacer(Modifier.width(6.dp))
-                                        Text("Instalar")
+                                        Text(if (apk.archiveKind == ArchiveKind.GENERIC_ZIP) "Extraer" else "Instalar")
                                     }
                                     IconButton(onClick = { viewModel.deleteApk(apk.file) }) {
                                         Icon(
