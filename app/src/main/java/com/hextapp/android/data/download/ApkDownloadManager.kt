@@ -514,6 +514,9 @@ class ApkDownloadManager(
 
             when (kind) {
                 ArchiveKind.SINGLE_APK -> {
+                    checkApkCompatibility(file)?.let { reason ->
+                        return@withContext Result.failure(IllegalStateException(reason))
+                    }
                     withContext(Dispatchers.Main) {
                         launchSingleApkInstaller(activityContext, file)
                     }
@@ -529,6 +532,9 @@ class ApkDownloadManager(
                         ?: error("No se encontró ningún APK dentro del archivo")
                     val cleanApk = promoteExtractedApk(extractedApk, file, outDir)
                     if (itemId != null) updateState(itemId, DownloadState.Completed(cleanApk))
+                    checkApkCompatibility(cleanApk)?.let { reason ->
+                        return@withContext Result.failure(IllegalStateException(reason))
+                    }
                     withContext(Dispatchers.Main) {
                         launchSingleApkInstaller(activityContext, cleanApk)
                     }
@@ -565,6 +571,9 @@ class ApkDownloadManager(
                         extracted.apkFiles.size == 1 -> {
                             val cleanApk = promoteExtractedApk(extracted.apkFiles.first(), file, outDir)
                             if (itemId != null) updateState(itemId, DownloadState.Completed(cleanApk))
+                            checkApkCompatibility(cleanApk)?.let { reason ->
+                                return@withContext Result.failure(IllegalStateException(reason))
+                            }
                             withContext(Dispatchers.Main) {
                                 launchSingleApkInstaller(activityContext, cleanApk)
                             }
@@ -603,6 +612,28 @@ class ApkDownloadManager(
         outDir.deleteRecursively()
         refreshLocalApks()
         return cleanApk
+    }
+
+    private fun checkApkCompatibility(apkFile: File): String? {
+        if (!apkFile.name.endsWith(".apk", ignoreCase = true)) return null
+        val pm = context.packageManager
+        val info = runCatching {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                pm.getPackageArchiveInfo(
+                    apkFile.absolutePath,
+                    android.content.pm.PackageManager.PackageInfoFlags.of(0)
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                pm.getPackageArchiveInfo(apkFile.absolutePath, 0)
+            }
+        }.getOrNull() ?: return "El archivo APK está dañado o no se puede leer"
+
+        val targetSdk = info.applicationInfo?.targetSdkVersion ?: 0
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && targetSdk in 1..23) {
+            return "APK incompatible con Android ${Build.VERSION.RELEASE}: requiere targetSdk >= 24 (este APK usa SDK $targetSdk)."
+        }
+        return null
     }
 
     private fun launchSingleApkInstaller(activityContext: Context, file: File) {
