@@ -87,6 +87,25 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val container = (application as HextappApp).container
+        intent?.data?.let { uri ->
+            val pathStr = uri.lastPathSegment.orEmpty().lowercase()
+            if (pathStr.endsWith(".nxs6") || pathStr.endsWith(".nx6r")) {
+                kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                    runCatching {
+                        val fileName = (uri.lastPathSegment?.substringAfterLast('/') ?: "archive.nx6r")
+                            .replace(Regex("[^a-zA-Z0-9._-]"), "_")
+                        val destDir = java.io.File(getExternalFilesDir(android.os.Environment.DIRECTORY_DOWNLOADS) ?: filesDir, "apks").apply { mkdirs() }
+                        val destFile = java.io.File(destDir, fileName)
+                        contentResolver.openInputStream(uri)?.use { ins ->
+                            java.io.FileOutputStream(destFile).use { fos -> ins.copyTo(fos) }
+                        }
+                        if (destFile.exists() && com.hextapp.android.data.nexus.NexusEngine.isNxs6File(destFile)) {
+                            container.apkDownloadManager.installWithNexus(this@MainActivity, destFile, itemId = null)
+                        }
+                    }
+                }
+            }
+        }
         setContent {
             val isDarkTheme by container.themePreferences.isDarkTheme.collectAsState(initial = true)
             val scope = rememberCoroutineScope()

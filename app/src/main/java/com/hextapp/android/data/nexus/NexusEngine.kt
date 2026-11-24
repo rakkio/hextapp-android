@@ -378,6 +378,25 @@ object NexusEngine {
             }
         }
 
+        fun pcm16DeltaDecodeAll(raw: ByteArray): ByteArray {
+            if (raw.size < 48) return raw
+            val out = raw.copyOf()
+            var prev = 0
+            val limit = out.size - ((out.size - 44) % 2)
+            var i = 44
+            while (i < limit) {
+                val lo = out[i].toInt() and 0xFF
+                val hi = out[i + 1].toInt()
+                val diff = (hi shl 8) or lo
+                val sample = ((prev + diff).toShort()).toInt()
+                prev = sample
+                out[i] = (sample and 0xFF).toByte()
+                out[i + 1] = ((sample ushr 8) and 0xFF).toByte()
+                i += 2
+            }
+            return out
+        }
+
         fun extractStreamSubset(xz: InputStream, subset: List<Nxs6Entry>) {
             var streamPos = 0L
             val buffer = ByteArray(64 * 1024)
@@ -414,39 +433,59 @@ object NexusEngine {
                     var remaining = entry.preSize
                     var carryLen = 0
                     var filePos = 0L
-                    FileOutputStream(outFile).use { fos ->
+                    if (entry.preprocessor == 2) {
+                        val rawPcm = ByteArray(entry.preSize.toInt())
+                        var off = 0
                         while (remaining > 0) {
-                            val toRead = minOf(remaining, (buffer.size - carryLen).toLong()).toInt()
-                            val read = xz.read(buffer, carryLen, toRead)
+                            val toRead = minOf(remaining, buffer.size.toLong()).toInt()
+                            val read = xz.read(buffer, 0, toRead)
                             if (read == -1) throw EOFException("Fin inesperado del flujo NXS6")
+                            System.arraycopy(buffer, 0, rawPcm, off, read)
+                            off += read
                             remaining -= read
                             streamPos += read
-                            val totalBuf = carryLen + read
-                            if (entry.preprocessor == 1) {
-                                val aligned = (totalBuf / 4) * 4
-                                if (aligned > 0) {
-                                    arm64BcjDecodeBlock(buffer, aligned, filePos)
-                                    fos.write(buffer, 0, aligned)
-                                    digest?.update(buffer, 0, aligned)
-                                    filePos += aligned
-                                }
-                                carryLen = totalBuf - aligned
-                                if (carryLen > 0) {
-                                    System.arraycopy(buffer, aligned, buffer, 0, carryLen)
-                                }
-                            } else {
-                                fos.write(buffer, 0, totalBuf)
-                                digest?.update(buffer, 0, totalBuf)
-                                filePos += totalBuf
-                                carryLen = 0
-                            }
                             val done = processedBytes.addAndGet(read.toLong())
                             val pct = ((done * 100) / totalBytes).toInt().coerceIn(0, 100)
                             onProgress(pct, outFile.name)
                         }
-                        if (carryLen > 0) {
-                            fos.write(buffer, 0, carryLen)
-                            digest?.update(buffer, 0, carryLen)
+                        val decoded = pcm16DeltaDecodeAll(rawPcm)
+                        FileOutputStream(outFile).use { it.write(decoded) }
+                        digest?.update(decoded)
+                    } else {
+                        FileOutputStream(outFile).use { fos ->
+                            while (remaining > 0) {
+                                val toRead = minOf(remaining, (buffer.size - carryLen).toLong()).toInt()
+                                val read = xz.read(buffer, carryLen, toRead)
+                                if (read == -1) throw EOFException("Fin inesperado del flujo NXS6")
+                                remaining -= read
+                                streamPos += read
+                                val totalBuf = carryLen + read
+                                if (entry.preprocessor == 1) {
+                                    val aligned = (totalBuf / 4) * 4
+                                    if (aligned > 0) {
+                                        arm64BcjDecodeBlock(buffer, aligned, filePos)
+                                        fos.write(buffer, 0, aligned)
+                                        digest?.update(buffer, 0, aligned)
+                                        filePos += aligned
+                                    }
+                                    carryLen = totalBuf - aligned
+                                    if (carryLen > 0) {
+                                        System.arraycopy(buffer, aligned, buffer, 0, carryLen)
+                                    }
+                                } else {
+                                    fos.write(buffer, 0, totalBuf)
+                                    digest?.update(buffer, 0, totalBuf)
+                                    filePos += totalBuf
+                                    carryLen = 0
+                                }
+                                val done = processedBytes.addAndGet(read.toLong())
+                                val pct = ((done * 100) / totalBytes).toInt().coerceIn(0, 100)
+                                onProgress(pct, outFile.name)
+                            }
+                            if (carryLen > 0) {
+                                fos.write(buffer, 0, carryLen)
+                                digest?.update(buffer, 0, carryLen)
+                            }
                         }
                     }
 
