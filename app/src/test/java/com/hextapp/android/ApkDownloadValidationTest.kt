@@ -140,4 +140,39 @@ class ApkDownloadValidationTest {
             outDir.deleteRecursively()
         }
     }
+
+    @Test
+    fun nexusPackAndExtractApkWithSpecialCharsInPng() = runBlocking {
+        val rawApk = File.createTempFile("infinite_flight_test", ".apk")
+        val nx6rFile = File.createTempFile("infinite_flight_test", ".nx6r")
+        val outDir = File.createTempFile("nexus_special_out", "").apply { delete(); mkdirs() }
+        val specialEntry = "assets/Content/UI/background-1024*768.png"
+        val pngBytes = byteArrayOf(0x89.toByte(), 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 1, 2, 3, 4, 5)
+        try {
+            ZipOutputStream(FileOutputStream(rawApk)).use { zos ->
+                zos.putNextEntry(ZipEntry("AndroidManifest.xml"))
+                zos.write("<manifest package=\"com.test.flight\"/>".toByteArray())
+                zos.closeEntry()
+
+                zos.putNextEntry(ZipEntry(specialEntry))
+                zos.write(pngBytes)
+                zos.closeEntry()
+            }
+
+            NexusEngine.packNx6r(rawApk, nx6rFile, preset = 1)
+            val extracted = NexusEngine.extractNxs6(nx6rFile, outDir, signingContext = null)
+            assertEquals(1, extracted.apkFiles.size)
+            val rebuiltApk = extracted.apkFiles.first()
+            java.util.zip.ZipFile(rebuiltApk).use { zf ->
+                val entry = zf.getEntry(specialEntry)
+                assertTrue("Debe existir $specialEntry en el APK reconstruido", entry != null)
+                val actualBytes = zf.getInputStream(entry).use { it.readBytes() }
+                assertTrue(pngBytes.contentEquals(actualBytes))
+            }
+        } finally {
+            rawApk.delete()
+            nx6rFile.delete()
+            outDir.deleteRecursively()
+        }
+    }
 }

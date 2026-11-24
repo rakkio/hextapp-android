@@ -190,7 +190,12 @@ object NexusEngine {
                     continue
                 }
 
-                val outFile = safeResolve(targetDir, canonicalTarget, entry.name)
+                val isVirtualApkEntry = entry.name.startsWith("__nx6r_apk__/")
+                val outFile = if (isVirtualApkEntry) {
+                    safeVirtualStagingFile(targetDir, entry.name)
+                } else {
+                    safeResolve(targetDir, canonicalTarget, entry.name)
+                }
                 outFile.parentFile?.mkdirs()
 
                 FileOutputStream(outFile).use { fos ->
@@ -359,7 +364,12 @@ object NexusEngine {
                     streamPos = entry.offset
                 }
 
-                val outFile = safeResolve(targetDir, canonicalTarget, entry.name)
+                val isVirtualApkEntry = entry.name.startsWith("__nx6r_apk__/")
+                val outFile = if (isVirtualApkEntry) {
+                    safeVirtualStagingFile(targetDir, entry.name)
+                } else {
+                    safeResolve(targetDir, canonicalTarget, entry.name)
+                }
                 outFile.parentFile?.mkdirs()
 
                 val digest = if (sha256Map.containsKey(entry.name)) {
@@ -391,7 +401,6 @@ object NexusEngine {
                     }
                 }
 
-                val isVirtualApkEntry = entry.name.startsWith("__nx6r_apk__/")
                 if (!isVirtualApkEntry) {
                     when {
                         outFile.name.endsWith(".apk", ignoreCase = true) -> apkFiles.add(outFile)
@@ -438,7 +447,7 @@ object NexusEngine {
             for (manifest in apkManifests) {
                 val reconstructed = reconstructAndSignApk(
                     manifest = manifest,
-                    entriesDir = File(virtualRoot, manifest.apkName),
+                    targetDir = targetDir,
                     outputDir = targetDir,
                     signingContext = signingContext
                 )
@@ -472,7 +481,7 @@ object NexusEngine {
 
     private fun reconstructAndSignApk(
         manifest: Nx6rApkManifest,
-        entriesDir: File,
+        targetDir: File,
         outputDir: File,
         signingContext: Context?
     ): File {
@@ -482,10 +491,12 @@ object NexusEngine {
         if (unsignedApk.exists()) unsignedApk.delete()
 
         val buffer = ByteArray(64 * 1024)
+        val seenEntries = HashSet<String>(manifest.entries.size)
         val countingOut = CountingOutputStream(BufferedOutputStream(FileOutputStream(unsignedApk), 64 * 1024))
         ZipOutputStream(countingOut).use { zos ->
             for (item in manifest.entries) {
-                val src = safeResolve(entriesDir, entriesDir.canonicalPath, item.entryName)
+                if (!seenEntries.add(item.entryName)) continue
+                val src = safeVirtualStagingFile(targetDir, "__nx6r_apk__/${manifest.apkName}/${item.entryName}")
                 if (!src.exists()) continue
 
                 val entry = ZipEntry(item.entryName)
@@ -500,8 +511,16 @@ object NexusEngine {
                     val alignBias = if (item.entryName.endsWith(".so", ignoreCase = true)) 4096L else 4L
                     val rem = (dataOffset % alignBias).toInt()
                     val pad = if (rem == 0) 0 else (alignBias.toInt() - rem)
-                    if (pad in 1..4096) {
-                        entry.extra = ByteArray(pad)
+                    if (pad > 0) {
+                        // Bloque ZIP extra válido (ID 0xD935 de zipalign, mínimo 4 bytes)
+                        val extraLen = if (pad < 4) pad + alignBias.toInt() else pad
+                        val dataLen = extraLen - 4
+                        val extra = ByteArray(extraLen)
+                        extra[0] = 0x35.toByte()
+                        extra[1] = 0xD9.toByte()
+                        extra[2] = (dataLen and 0xFF).toByte()
+                        extra[3] = ((dataLen ushr 8) and 0xFF).toByte()
+                        entry.extra = extra
                     }
                 } else {
                     entry.method = ZipEntry.DEFLATED
@@ -675,9 +694,25 @@ object NexusEngine {
         return map
     }
 
+    private fun safeVirtualStagingFile(targetDir: File, virtualEntryName: String): File {
+        val digest = MessageDigest.getInstance("SHA-256")
+            .digest(virtualEntryName.toByteArray(Charsets.UTF_8))
+        val hex = digest.joinToString("") { "%02x".format(it) }
+        val vRoot = File(targetDir, "__nx6r_apk__")
+        vRoot.mkdirs()
+        return File(vRoot, "$hex.bin")
+    }
+
     private fun safeResolve(targetDir: File, canonicalTarget: String, entryName: String): File {
-        val cleanName = entryName.replace('\\', '/').trimStart('/')
-        val outFile = File(targetDir, cleanName)
+        val sanitized = entryName.replace('\\', '/')
+            .trimStart('/')
+            .split('/')
+            .filter { it.isNotEmpty() }
+            .joinToString("/") { seg ->
+                if (seg == "." || seg == "..") seg
+                else seg.replace(Regex("[*?:\"<>|]"), "_")
+            }
+        val outFile = File(targetDir, sanitized)
         if (!outFile.canonicalPath.startsWith(canonicalTarget + File.separator)) {
             throw SecurityException("Entrada inválida en archivo: $entryName")
         }
@@ -867,11 +902,13 @@ object NexusEngine {
 
                     if (isApk) {
                         val apkItems = mutableListOf<Nx6rApkEntryMeta>()
+                        val seenApkEntries = HashSet<String>()
                         ZipFile(file).use { zf ->
                             val entries = zf.entries()
                             while (entries.hasMoreElements()) {
                                 val info = entries.nextElement()
                                 if (info.isDirectory) continue
+                                if (!seenApkEntries.add(info.name)) continue
                                 val upper = info.name.uppercase()
                                 if (upper.startsWith("META-INF/") && (
                                         upper.endsWith(".SF") || upper.endsWith(".RSA") ||

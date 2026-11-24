@@ -414,17 +414,28 @@ class ApkDownloadManager(
         val safeName = sanitizeFilename("${slug}-${version}.apk")
         val tempFile = File(apkDirectory(), "$safeName.part")
         val finalFile = File(apkDirectory(), safeName)
-        if (tempFile.exists()) tempFile.delete()
+        val existingBytes = if (tempFile.exists() && tempFile.length() > 0L) tempFile.length() else 0L
 
         val requestBuilder = Request.Builder().url(targetUrl)
         headers.forEach { (key, value) -> requestBuilder.header(key, value) }
+        if (existingBytes > 0L) {
+            requestBuilder.header("Range", "bytes=$existingBytes-")
+        }
 
         val call = okHttpClient.newCall(requestBuilder.build())
         activeCalls[itemId] = call
         try {
             call.execute().use { response ->
                 val contentType = response.header("Content-Type")
-                android.util.Log.d("HextappDownload", "url=$targetUrl code=${response.code} type=$contentType len=${response.body?.contentLength()}")
+                android.util.Log.d("HextappDownload", "url=$targetUrl code=${response.code} type=$contentType len=${response.body?.contentLength()} resume=$existingBytes")
+                if (response.code == 416 && existingBytes > 0L) {
+                    tempFile.delete()
+                    updateState(
+                        itemId,
+                        DownloadState.Error("Archivo parcial incompatible; reintenta la descarga.", browserFallbackUrl)
+                    )
+                    return null
+                }
                 if (!response.isSuccessful) {
                     updateState(
                         itemId,
@@ -434,6 +445,7 @@ class ApkDownloadManager(
                 }
 
                 if (ApkDownloadValidation.isNonBinaryContentType(contentType)) {
+                    tempFile.delete()
                     if (allowBrowserFallback) {
                         updateState(itemId, DownloadState.RequiresBrowser(browserFallbackUrl, itemName))
                     } else {
@@ -453,13 +465,16 @@ class ApkDownloadManager(
                     return null
                 }
 
-                val totalBytes = body.contentLength()
-                var bytesRead = 0L
+                val isResumed = response.code == 206 && existingBytes > 0L
+                val baseOffset = if (isResumed) existingBytes else 0L
+                val remainingLen = body.contentLength()
+                val totalBytes = if (remainingLen > 0L) baseOffset + remainingLen else -1L
+                var bytesRead = baseOffset
                 val buffer = ByteArray(16 * 1024)
                 var lastEmitTime = 0L
 
                 body.byteStream().use { input ->
-                    FileOutputStream(tempFile).use { output ->
+                    FileOutputStream(tempFile, isResumed).use { output ->
                         while (true) {
                             val read = input.read(buffer)
                             if (read == -1) break
@@ -514,10 +529,11 @@ class ApkDownloadManager(
                 return resolvedFinalFile
             }
         } catch (e: Exception) {
-            tempFile.delete()
             if (call.isCanceled()) {
+                tempFile.delete()
                 updateState(itemId, DownloadState.Idle)
             } else {
+                // Conservar tempFile (.part) para reanudar mediante HTTP Range en el siguiente intento
                 updateState(itemId, DownloadState.Error(e.message ?: "Error al descargar el APK", browserFallbackUrl))
             }
             return null
@@ -614,6 +630,9 @@ class ApkDownloadManager(
                         if (itemId != null) updateState(itemId, DownloadState.Extracting(pct, entry))
                     }
                     val obbCount = if (extracted.obbFiles.isNotEmpty()) NexusEngine.installObbFiles(extracted.obbFiles) else 0
+                    val obbWarning = if (extracted.obbFiles.isNotEmpty() && obbCount < extracted.obbFiles.size) {
+                        " (aviso: Android 11+ bloqueó copiar ${extracted.obbFiles.size - obbCount} OBB a Android/obb)"
+                    } else ""
                     when {
                         extracted.apkFiles.size > 1 -> {
                             file.delete()
@@ -621,7 +640,7 @@ class ApkDownloadManager(
                             if (itemId != null) updateState(itemId, DownloadState.Installing)
                             NexusEngine.installSplitApks(activityContext, extracted.apkFiles).getOrThrow()
                             if (itemId != null) updateState(itemId, DownloadState.Idle)
-                            if (obbCount > 0) "Instalando ${extracted.apkFiles.size} APKs + $obbCount OBB desde NX6R..." else "Instalando ${extracted.apkFiles.size} APKs desde NXS6..."
+                            (if (obbCount > 0) "Instalando ${extracted.apkFiles.size} APKs + $obbCount OBB desde NX6R..." else "Instalando ${extracted.apkFiles.size} APKs desde NXS6...") + obbWarning
                         }
                         extracted.apkFiles.size == 1 -> {
                             val cleanApk = promoteExtractedApk(extracted.apkFiles.first(), file, outDir)
