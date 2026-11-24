@@ -63,7 +63,8 @@ private data class Nxs6Entry(
     val name: String,
     val preSize: Long,
     val offset: Long,
-    val chunkId: Int = 0xFF
+    val chunkId: Int = 0xFF,
+    val preprocessor: Int = 0
 )
 
 private data class Nx6rChunkMeta(
@@ -355,15 +356,36 @@ object NexusEngine {
         val totalBytes = entries.sumOf { it.preSize }.coerceAtLeast(1L)
         val processedBytes = AtomicLong(0L)
 
+        fun arm64BcjDecodeBlock(buf: ByteArray, alignedLen: Int, baseOffset: Long) {
+            var i = 0
+            while (i + 4 <= alignedLen) {
+                val b0 = buf[i].toInt() and 0xFF
+                val b1 = buf[i + 1].toInt() and 0xFF
+                val b2 = buf[i + 2].toInt() and 0xFF
+                val b3 = buf[i + 3].toInt() and 0xFF
+                if ((b3 and 0xFC) == 0x94) {
+                    val insn = b0 or (b1 shl 8) or (b2 shl 16) or (b3 shl 24)
+                    val abs26 = insn and 0x03FFFFFF
+                    val pcWord = ((baseOffset + i) ushr 2).toInt()
+                    val imm26 = (abs26 - pcWord) and 0x03FFFFFF
+                    val orig = (0x94 shl 24) or imm26
+                    buf[i] = (orig and 0xFF).toByte()
+                    buf[i + 1] = ((orig ushr 8) and 0xFF).toByte()
+                    buf[i + 2] = ((orig ushr 16) and 0xFF).toByte()
+                    buf[i + 3] = ((orig ushr 24) and 0xFF).toByte()
+                }
+                i += 4
+            }
+        }
+
         fun extractStreamSubset(xz: InputStream, subset: List<Nxs6Entry>) {
             var streamPos = 0L
             val buffer = ByteArray(64 * 1024)
-            for (entry in subset.sortedBy { it.offset }) {
-                if (entry.offset > streamPos) {
-                    skipExact(xz, entry.offset - streamPos)
-                    streamPos = entry.offset
-                }
+            var lastOffset = -1L
+            var lastPreSize = -1L
+            var lastOutFile: File? = null
 
+            for (entry in subset.sortedBy { it.offset }) {
                 val isVirtualApkEntry = entry.name.startsWith("__nx6r_apk__/")
                 val outFile = if (isVirtualApkEntry) {
                     safeVirtualStagingFile(targetDir, entry.name)
@@ -372,33 +394,73 @@ object NexusEngine {
                 }
                 outFile.parentFile?.mkdirs()
 
-                val digest = if (sha256Map.containsKey(entry.name)) {
-                    MessageDigest.getInstance("SHA-256")
-                } else null
-
-                var remaining = entry.preSize
-                FileOutputStream(outFile).use { fos ->
-                    while (remaining > 0) {
-                        val toRead = minOf(remaining, buffer.size.toLong()).toInt()
-                        val read = xz.read(buffer, 0, toRead)
-                        if (read == -1) throw EOFException("Fin inesperado del flujo NXS6")
-                        fos.write(buffer, 0, read)
-                        digest?.update(buffer, 0, read)
-                        remaining -= read
-                        streamPos += read
-                        val done = processedBytes.addAndGet(read.toLong())
-                        val pct = ((done * 100) / totalBytes).toInt().coerceIn(0, 100)
-                        onProgress(pct, outFile.name)
+                if (entry.offset == lastOffset && entry.preSize == lastPreSize && lastOutFile != null && lastOutFile.exists()) {
+                    if (outFile.canonicalPath != lastOutFile.canonicalPath) {
+                        lastOutFile.copyTo(outFile, overwrite = true)
                     }
-                }
-
-                if (digest != null) {
-                    val expected = sha256Map[entry.name]!!
-                    val actual = digest.digest()
-                    if (!expected.contentEquals(actual)) {
-                        outFile.delete()
-                        throw SecurityException("SHA-256 inválido en ${entry.name}")
+                    val done = processedBytes.addAndGet(entry.preSize)
+                    val pct = ((done * 100) / totalBytes).toInt().coerceIn(0, 100)
+                    onProgress(pct, outFile.name)
+                } else {
+                    if (entry.offset > streamPos) {
+                        skipExact(xz, entry.offset - streamPos)
+                        streamPos = entry.offset
                     }
+
+                    val digest = if (sha256Map.containsKey(entry.name)) {
+                        MessageDigest.getInstance("SHA-256")
+                    } else null
+
+                    var remaining = entry.preSize
+                    var carryLen = 0
+                    var filePos = 0L
+                    FileOutputStream(outFile).use { fos ->
+                        while (remaining > 0) {
+                            val toRead = minOf(remaining, (buffer.size - carryLen).toLong()).toInt()
+                            val read = xz.read(buffer, carryLen, toRead)
+                            if (read == -1) throw EOFException("Fin inesperado del flujo NXS6")
+                            remaining -= read
+                            streamPos += read
+                            val totalBuf = carryLen + read
+                            if (entry.preprocessor == 1) {
+                                val aligned = (totalBuf / 4) * 4
+                                if (aligned > 0) {
+                                    arm64BcjDecodeBlock(buffer, aligned, filePos)
+                                    fos.write(buffer, 0, aligned)
+                                    digest?.update(buffer, 0, aligned)
+                                    filePos += aligned
+                                }
+                                carryLen = totalBuf - aligned
+                                if (carryLen > 0) {
+                                    System.arraycopy(buffer, aligned, buffer, 0, carryLen)
+                                }
+                            } else {
+                                fos.write(buffer, 0, totalBuf)
+                                digest?.update(buffer, 0, totalBuf)
+                                filePos += totalBuf
+                                carryLen = 0
+                            }
+                            val done = processedBytes.addAndGet(read.toLong())
+                            val pct = ((done * 100) / totalBytes).toInt().coerceIn(0, 100)
+                            onProgress(pct, outFile.name)
+                        }
+                        if (carryLen > 0) {
+                            fos.write(buffer, 0, carryLen)
+                            digest?.update(buffer, 0, carryLen)
+                        }
+                    }
+
+                    if (digest != null) {
+                        val expected = sha256Map[entry.name]!!
+                        val actual = digest.digest()
+                        if (!expected.contentEquals(actual)) {
+                            outFile.delete()
+                            throw SecurityException("SHA-256 inválido en ${entry.name}")
+                        }
+                    }
+                    lastOffset = entry.offset
+                    lastPreSize = entry.preSize
+                    lastOutFile = outFile
                 }
 
                 if (!isVirtualApkEntry) {
@@ -441,17 +503,22 @@ object NexusEngine {
             legacyBis?.close()
         }
 
-        // Reconstrucción NX6R APK-aware: reempaqueta las entradas en APK(s) firmados
+        // Reconstrucción NX6R APK-aware / OBB-aware
         if (apkManifests.isNotEmpty()) {
             val virtualRoot = File(targetDir, "__nx6r_apk__")
             for (manifest in apkManifests) {
+                val isObbZip = manifest.apkName.endsWith(".obb", ignoreCase = true)
                 val reconstructed = reconstructAndSignApk(
                     manifest = manifest,
                     targetDir = targetDir,
                     outputDir = targetDir,
-                    signingContext = signingContext
+                    signingContext = if (isObbZip) null else signingContext
                 )
-                apkFiles.add(reconstructed)
+                if (isObbZip) {
+                    obbFiles.add(reconstructed)
+                } else {
+                    apkFiles.add(reconstructed)
+                }
             }
             virtualRoot.deleteRecursively()
         }
@@ -595,10 +662,10 @@ object NexusEngine {
             val name = String(nameBytes, Charsets.UTF_8)
             bb.long // original_size
             val preSize = bb.long
-            bb.get() // preprocessor
+            val preproc = bb.get().toInt() and 0xFF
             val chunkId = bb.get().toInt() and 0xFF
             val chunkOffset = bb.long
-            out.add(Nxs6Entry(name = name, preSize = preSize, offset = chunkOffset, chunkId = chunkId))
+            out.add(Nxs6Entry(name = name, preSize = preSize, offset = chunkOffset, chunkId = chunkId, preprocessor = preproc))
         }
         return out
     }
