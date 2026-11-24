@@ -5,11 +5,19 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.CollectionsBookmark
 import androidx.compose.material.icons.outlined.Explore
@@ -31,7 +39,9 @@ import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -65,6 +75,7 @@ import com.hextapp.android.ui.screens.library.LibraryScreen
 import com.hextapp.android.ui.screens.library.LibraryViewModel
 import com.hextapp.android.ui.screens.profile.ProfileScreen
 import com.hextapp.android.ui.screens.profile.ProfileViewModel
+import com.hextapp.android.ui.theme.HextCyan
 import com.hextapp.android.ui.theme.HextappTheme
 import com.hextapp.android.ui.theme.HextPrimary
 import kotlinx.coroutines.launch
@@ -227,47 +238,78 @@ private fun HextappRoot(
     Scaffold(
         bottomBar = {
             if (showBottomBar) {
-                Column {
-                    HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
-                    NavigationBar(containerColor = MaterialTheme.colorScheme.surface) {
-                        tabs.forEach { tab ->
-                            val selected = currentRoute == tab.route
-                            NavigationBarItem(
-                                selected = selected,
-                                onClick = {
-                                    navController.navigate(tab.route) {
-                                        popUpTo(navController.graph.findStartDestination().id) {
-                                            saveState = true
+                Box(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .navigationBarsPadding()
+                        .padding(horizontal = 14.dp, vertical = 10.dp)
+                ) {
+                    Surface(
+                        shape = RoundedCornerShape(26.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                        tonalElevation = 8.dp,
+                        shadowElevation = 12.dp,
+                        border = BorderStroke(
+                            1.dp,
+                            androidx.compose.ui.graphics.Brush.horizontalGradient(
+                                listOf(
+                                    HextPrimary.copy(alpha = 0.55f),
+                                    HextCyan.copy(alpha = 0.35f),
+                                    HextPrimary.copy(alpha = 0.55f)
+                                )
+                            )
+                        )
+                    ) {
+                        NavigationBar(
+                            containerColor = Color.Transparent,
+                            tonalElevation = 0.dp
+                        ) {
+                            tabs.forEach { tab ->
+                                val selected = currentRoute == tab.route
+                                NavigationBarItem(
+                                    selected = selected,
+                                    colors = NavigationBarItemDefaults.colors(
+                                        selectedIconColor = Color.White,
+                                        selectedTextColor = HextCyan,
+                                        indicatorColor = HextPrimary.copy(alpha = 0.28f),
+                                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant
+                                    ),
+                                    onClick = {
+                                        navController.navigate(tab.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
                                         }
-                                        launchSingleTop = true
-                                        restoreState = true
-                                    }
-                                },
-                                icon = {
-                                    if (tab is BottomTab.Library) {
-                                        BadgedBox(
-                                            badge = {
-                                                if (currentRoute != tab.route) {
-                                                    Badge(containerColor = HextPrimary) {
-                                                        Text("↓", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                                    },
+                                    icon = {
+                                        if (tab is BottomTab.Library) {
+                                            BadgedBox(
+                                                badge = {
+                                                    if (currentRoute != tab.route) {
+                                                        Badge(containerColor = HextPrimary) {
+                                                            Text("↓", style = MaterialTheme.typography.labelMedium, color = Color.White)
+                                                        }
                                                     }
                                                 }
+                                            ) {
+                                                Icon(
+                                                    imageVector = if (selected) tab.selectedIcon else tab.icon,
+                                                    contentDescription = tab.label
+                                                )
                                             }
-                                        ) {
+                                        } else {
                                             Icon(
                                                 imageVector = if (selected) tab.selectedIcon else tab.icon,
                                                 contentDescription = tab.label
                                             )
                                         }
-                                    } else {
-                                        Icon(
-                                            imageVector = if (selected) tab.selectedIcon else tab.icon,
-                                            contentDescription = tab.label
-                                        )
-                                    }
-                                },
-                                label = { Text(tab.label, maxLines = 1) }
-                            )
+                                    },
+                                    label = { Text(tab.label, maxLines = 1) }
+                                )
+                            }
                         }
                     }
                 }
@@ -277,7 +319,9 @@ private fun HextappRoot(
         NavHost(
             navController = navController,
             startDestination = BottomTab.Home.route,
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(innerPadding),
+            enterTransition = { fadeIn(tween(220)) + slideInVertically(tween(220)) { it / 28 } },
+            exitTransition = { fadeOut(tween(160)) }
         ) {
             composable(BottomTab.Home.route) {
                 val vm: HomeViewModel = viewModel(

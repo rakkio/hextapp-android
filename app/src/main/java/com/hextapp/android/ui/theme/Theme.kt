@@ -14,24 +14,26 @@ import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
-val HextPrimary = Color(0xFF6C4DFF)
-val HextSecondary = Color(0xFF00C896)
+val HextPrimary = Color(0xFF7B5CFF)
+val HextSecondary = Color(0xFF00E5B0)
+val HextCyan = Color(0xFF00D4FF)
 val HextError = Color(0xFFE54868)
 
 private val DarkPalette = darkColorScheme(
     primary = HextPrimary,
     onPrimary = Color.White,
-    primaryContainer = Color(0xFF281C59),
-    onPrimaryContainer = Color(0xFFE5DEFF),
+    primaryContainer = Color(0xFF231952),
+    onPrimaryContainer = Color(0xFFE7E0FF),
     secondary = HextSecondary,
     onSecondary = Color(0xFF00201A),
-    background = Color(0xFF09090E),
-    onBackground = Color(0xFFF3F3F8),
-    surface = Color(0xFF13131D),
-    onSurface = Color(0xFFF3F3F8),
-    surfaceVariant = Color(0xFF1C1C2B),
-    onSurfaceVariant = Color(0xFFA0A0BA),
-    outline = Color(0xFF2B2B3E),
+    tertiary = HextCyan,
+    background = Color(0xFF06070D),
+    onBackground = Color(0xFFF4F6FF),
+    surface = Color(0xFF0E101C),
+    onSurface = Color(0xFFF4F6FF),
+    surfaceVariant = Color(0xFF151829),
+    onSurfaceVariant = Color(0xFF9EA4C4),
+    outline = Color(0xFF282D4A),
     error = HextError,
     onError = Color.White
 )

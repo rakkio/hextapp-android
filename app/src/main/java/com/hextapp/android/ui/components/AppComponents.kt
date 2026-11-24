@@ -71,6 +71,7 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import com.hextapp.android.R
 import com.hextapp.android.graphql.fragment.ItemSummary
+import com.hextapp.android.ui.theme.HextCyan
 import com.hextapp.android.ui.theme.HextPrimary
 import com.hextapp.android.ui.theme.HextSecondary
 import java.util.Locale
@@ -140,7 +141,14 @@ fun HextappTopBar(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .background(MaterialTheme.colorScheme.surface)
+            .background(
+                Brush.verticalGradient(
+                    listOf(
+                        MaterialTheme.colorScheme.surface,
+                        MaterialTheme.colorScheme.background
+                    )
+                )
+            )
     ) {
         Row(
             modifier = Modifier
@@ -151,14 +159,17 @@ fun HextappTopBar(
         ) {
             Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.weight(1f)) {
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(
+                        1.2.dp,
+                        Brush.linearGradient(listOf(HextPrimary.copy(alpha = 0.8f), HextCyan.copy(alpha = 0.6f)))
+                    )
                 ) {
                     Image(
                         painter = painterResource(id = R.drawable.hextapp_logo),
                         contentDescription = "Hextapp",
                         contentScale = ContentScale.Crop,
-                        modifier = Modifier.size(36.dp)
+                        modifier = Modifier.size(38.dp)
                     )
                 }
                 Spacer(Modifier.width(12.dp))
@@ -173,7 +184,7 @@ fun HextappTopBar(
                         Text(
                             text = subtitle,
                             style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = HextSecondary,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
@@ -181,20 +192,21 @@ fun HextappTopBar(
                 }
             }
 
-            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
                 if (extraAction != null) {
                     extraAction()
                 }
                 if (onSearchClick != null) {
                     Surface(
                         shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
+                        border = BorderStroke(1.dp, HextPrimary.copy(alpha = 0.35f))
                     ) {
                         IconButton(onClick = onSearchClick, modifier = Modifier.size(38.dp)) {
                             Icon(
                                 imageVector = Icons.Outlined.Search,
                                 contentDescription = "Buscar",
+                                tint = HextCyan,
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -202,7 +214,7 @@ fun HextappTopBar(
                 }
                 Surface(
                     shape = CircleShape,
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.85f),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
                 ) {
                     IconButton(onClick = onToggleTheme, modifier = Modifier.size(38.dp)) {
@@ -217,7 +229,21 @@ fun HextappTopBar(
                 }
             }
         }
-        HorizontalDivider(thickness = 1.dp, color = MaterialTheme.colorScheme.outline)
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(1.dp)
+                .background(
+                    Brush.horizontalGradient(
+                        listOf(
+                            Color.Transparent,
+                            HextPrimary.copy(alpha = 0.65f),
+                            HextCyan.copy(alpha = 0.55f),
+                            Color.Transparent
+                        )
+                    )
+                )
+        )
     }
 }
 
@@ -279,9 +305,18 @@ fun HeroShowcasePager(
                 modifier = Modifier
                     .fillMaxWidth()
                     .pressScale { onAppClick(item.slug) },
-                shape = RoundedCornerShape(22.dp),
+                shape = RoundedCornerShape(24.dp),
                 color = MaterialTheme.colorScheme.surface,
-                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+                border = BorderStroke(
+                    1.2.dp,
+                    Brush.linearGradient(
+                        listOf(
+                            HextPrimary.copy(alpha = 0.65f),
+                            HextCyan.copy(alpha = 0.45f),
+                            HextSecondary.copy(alpha = 0.30f)
+                        )
+                    )
+                )
             ) {
                 Box(
                     modifier = Modifier
@@ -289,8 +324,9 @@ fun HeroShowcasePager(
                         .background(
                             Brush.linearGradient(
                                 listOf(
-                                    HextPrimary.copy(alpha = 0.18f),
-                                    HextSecondary.copy(alpha = 0.12f)
+                                    HextPrimary.copy(alpha = 0.22f),
+                                    HextCyan.copy(alpha = 0.08f),
+                                    HextSecondary.copy(alpha = 0.14f)
                                 )
                             )
                         )
@@ -375,9 +411,17 @@ fun AppCarouselCard(
         modifier = modifier
             .width(142.dp)
             .pressScale(onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    HextPrimary.copy(alpha = 0.35f),
+                    MaterialTheme.colorScheme.outline
+                )
+            )
+        )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             AppIconImage(
@@ -438,9 +482,17 @@ fun AppGridCard(
         modifier = modifier
             .fillMaxWidth()
             .pressScale(onClick),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(20.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
+        border = BorderStroke(
+            1.dp,
+            Brush.linearGradient(
+                listOf(
+                    HextPrimary.copy(alpha = 0.35f),
+                    MaterialTheme.colorScheme.outline
+                )
+            )
+        )
     ) {
         Column(modifier = Modifier.padding(12.dp)) {
             Row(
