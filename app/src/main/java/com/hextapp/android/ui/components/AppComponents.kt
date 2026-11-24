@@ -306,14 +306,14 @@ fun HeroShowcasePager(
                     .fillMaxWidth()
                     .pressScale { onAppClick(item.slug) },
                 shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface,
+                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
                 border = BorderStroke(
-                    1.2.dp,
-                    Brush.linearGradient(
+                    1.dp,
+                    Brush.verticalGradient(
                         listOf(
-                            HextPrimary.copy(alpha = 0.65f),
-                            HextCyan.copy(alpha = 0.45f),
-                            HextSecondary.copy(alpha = 0.30f)
+                            Color.White.copy(alpha = 0.24f),
+                            HextPrimary.copy(alpha = 0.40f),
+                            HextCyan.copy(alpha = 0.25f)
                         )
                     )
                 )
@@ -412,13 +412,14 @@ fun AppCarouselCard(
             .width(142.dp)
             .pressScale(onClick),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)),
         border = BorderStroke(
             1.dp,
-            Brush.linearGradient(
+            Brush.verticalGradient(
                 listOf(
-                    HextPrimary.copy(alpha = 0.35f),
-                    MaterialTheme.colorScheme.outline
+                    Color.White.copy(alpha = 0.22f),
+                    HextPrimary.copy(alpha = 0.32f),
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 )
             )
         )
@@ -483,13 +484,14 @@ fun AppGridCard(
             .fillMaxWidth()
             .pressScale(onClick),
         shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)),
         border = BorderStroke(
             1.dp,
-            Brush.linearGradient(
+            Brush.verticalGradient(
                 listOf(
-                    HextPrimary.copy(alpha = 0.35f),
-                    MaterialTheme.colorScheme.outline
+                    Color.White.copy(alpha = 0.22f),
+                    HextPrimary.copy(alpha = 0.32f),
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
                 )
             )
         )
