@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Hextapp</string>
+    <string name="nav_home">Início</string>
+    <string name="nav_games">Jogos</string>
+    <string name="nav_explore">Explorar</string>
+    <string name="nav_library">Biblioteca</string>
+    <string name="nav_profile">Perfil</string>
+    <string name="home_subtitle_default">Loja Android • Jogos e Apps</string>
+    <string name="home_retry">Tentar novamente</string>
+    <string name="detail_back">Voltar</string>
+    <string name="detail_favorite">Favorito</string>
+    <string name="promo_sponsored">Patrocinado</string>
+    <string name="promo_partner">Parceiro</string>
+    <string name="promo_fallback_text">Com tecnologia Hextapp • APKs diretos e Emuladores</string>
+</resources>

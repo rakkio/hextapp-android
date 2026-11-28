@@ -30,7 +30,10 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.interaction.collectIsDraggedAsState
 import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.PageSize
+import androidx.compose.foundation.pager.PagerState
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -40,6 +43,7 @@ import androidx.compose.material.icons.outlined.DarkMode
 import androidx.compose.material.icons.outlined.Download
 import androidx.compose.material.icons.outlined.LightMode
 import androidx.compose.material.icons.outlined.Search
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Star
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -50,8 +54,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.composed
@@ -68,6 +75,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.lerp as lerpDp
+import androidx.compose.ui.util.lerp as lerpF
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import kotlinx.coroutines.delay
 import coil3.compose.AsyncImage
 import com.hextapp.android.R
 import com.hextapp.android.graphql.fragment.ItemSummary
@@ -76,6 +88,7 @@ import com.hextapp.android.ui.theme.HextPrimary
 import com.hextapp.android.ui.theme.HextSecondary
 import java.util.Locale
 import kotlin.math.PI
+import kotlin.math.absoluteValue
 import kotlin.math.cos
 import kotlin.math.sin
 
@@ -285,6 +298,14 @@ fun AppIconImage(
     }
 }
 
+private val HeroPalettes = listOf(
+    listOf(Color(0xFF2A1468), Color(0xFF12182E), Color(0xFF0B3A4A)),
+    listOf(Color(0xFF3A1248), Color(0xFF1A1230), Color(0xFF12305A)),
+    listOf(Color(0xFF0E3A32), Color(0xFF101828), Color(0xFF1A2458)),
+    listOf(Color(0xFF3A2410), Color(0xFF1A1428), Color(0xFF2A1848)),
+    listOf(Color(0xFF142848), Color(0xFF10141F), Color(0xFF2A1860))
+)
+
 @Composable
 fun HeroShowcasePager(
     items: List<ItemSummary>,
@@ -292,108 +313,346 @@ fun HeroShowcasePager(
 ) {
     if (items.isEmpty()) return
     val pagerState = rememberPagerState(pageCount = { items.size })
+    val dragged by pagerState.interactionSource.collectIsDraggedAsState()
+    var autoplayProgress by remember { mutableFloatStateOf(0f) }
+
+    LaunchedEffect(pagerState.settledPage, dragged, items.size) {
+        autoplayProgress = 0f
+        if (dragged || items.size < 2) return@LaunchedEffect
+        val ticks = 48
+        repeat(ticks) { step ->
+            delay(100)
+            if (pagerState.isScrollInProgress) return@LaunchedEffect
+            autoplayProgress = (step + 1) / ticks.toFloat()
+        }
+        val next = (pagerState.settledPage + 1) % items.size
+        pagerState.animateScrollToPage(next)
+    }
 
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         HorizontalPager(
             state = pagerState,
-            contentPadding = PaddingValues(horizontal = 16.dp),
-            pageSpacing = 12.dp
+            contentPadding = PaddingValues(horizontal = 32.dp),
+            pageSpacing = 14.dp,
+            beyondViewportPageCount = 1,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(232.dp)
         ) { page ->
             val item = items[page]
-            val isGame = item.category?.slug?.contains("game", ignoreCase = true) == true
-            Surface(
+            val distance = pageDistance(pagerState, page)
+            val focus = (1f - distance).coerceIn(0f, 1f)
+            HeroShowcaseCard(
+                item = item,
+                paletteIndex = page,
                 modifier = Modifier
-                    .fillMaxWidth()
-                    .pressScale { onAppClick(item.slug) },
-                shape = RoundedCornerShape(24.dp),
-                color = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f),
-                border = BorderStroke(
-                    1.dp,
-                    Brush.verticalGradient(
-                        listOf(
-                            Color.White.copy(alpha = 0.24f),
-                            HextPrimary.copy(alpha = 0.40f),
-                            HextCyan.copy(alpha = 0.25f)
-                        )
-                    )
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val scale = lerpF(0.9f, 1f, focus)
+                        scaleX = scale
+                        scaleY = scale
+                        alpha = lerpF(0.55f, 1f, focus)
+                    },
+                onClick = { onAppClick(item.slug) }
+            )
+        }
+
+        if (items.size > 1) {
+            Spacer(Modifier.height(12.dp))
+            HeroPageIndicator(
+                pagerState = pagerState,
+                pageCount = items.size,
+                autoplayProgress = if (dragged || pagerState.isScrollInProgress) 0f else autoplayProgress
+            )
+        }
+    }
+}
+
+@Composable
+private fun HeroShowcaseCard(
+    item: ItemSummary,
+    paletteIndex: Int,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
+    val isGame = item.category?.slug?.contains("game", ignoreCase = true) == true ||
+        item.category?.name?.contains("juego", ignoreCase = true) == true
+    val badge = when {
+        item.isHot -> "HOT"
+        item.isNewItem -> "NUEVO"
+        isGame -> "JUEGO"
+        else -> "DESTACADO"
+    }
+    val banner = item.steam?.hero?.takeIf { it.isNotBlank() }
+        ?: item.steam?.header?.takeIf { it.isNotBlank() }
+        ?: item.steam?.capsule?.takeIf { it.isNotBlank() }
+    val palette = HeroPalettes[paletteIndex % HeroPalettes.size]
+
+    Surface(
+        modifier = modifier.pressScale(onClick),
+        shape = RoundedCornerShape(28.dp),
+        color = Color.Transparent,
+        border = BorderStroke(
+            1.dp,
+            Brush.verticalGradient(
+                listOf(
+                    Color.White.copy(alpha = 0.28f),
+                    HextPrimary.copy(alpha = 0.35f)
                 )
-            ) {
+            )
+        )
+    ) {
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (banner != null) {
+                AsyncImage(
+                    model = banner,
+                    contentDescription = null,
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            } else {
                 Box(
                     modifier = Modifier
-                        .fillMaxWidth()
-                        .background(
-                            Brush.linearGradient(
-                                listOf(
-                                    HextPrimary.copy(alpha = 0.22f),
-                                    HextCyan.copy(alpha = 0.08f),
-                                    HextSecondary.copy(alpha = 0.14f)
-                                )
-                            )
+                        .fillMaxSize()
+                        .background(Brush.linearGradient(palette))
+                )
+            }
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(
+                        Brush.verticalGradient(
+                            0f to Color.Black.copy(alpha = 0.05f),
+                            0.45f to Color.Black.copy(alpha = 0.25f),
+                            1f to Color.Black.copy(alpha = 0.82f)
                         )
-                        .padding(18.dp)
+                    )
+            )
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomStart)
+                    .fillMaxWidth()
+                    .padding(16.dp)
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White.copy(alpha = 0.16f),
+                    border = BorderStroke(1.dp, Color.White.copy(alpha = 0.28f))
                 ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        AppIconImage(
-                            url = item.logo?.url,
-                            contentDescription = item.name,
-                            size = 76.dp,
-                            cornerRadius = 18.dp
+                    Text(
+                        text = badge,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.Bold,
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
+                    )
+                }
+                Spacer(Modifier.height(8.dp))
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    AppIconImage(
+                        url = item.logo?.url,
+                        contentDescription = item.name,
+                        size = 52.dp,
+                        cornerRadius = 14.dp
+                    )
+                    Spacer(Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = item.name,
+                            style = MaterialTheme.typography.titleLarge,
+                            color = Color.White,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
-                        Spacer(Modifier.width(14.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.primaryContainer,
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-                            ) {
-                                Text(
-                                    text = if (isGame) "JUEGO ANDROID" else "DESTACADO APK",
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
-                                    fontWeight = FontWeight.Bold,
-                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 3.dp)
-                                )
-                            }
-                            Spacer(Modifier.height(6.dp))
+                        Text(
+                            text = item.shortDescription ?: item.developer.name,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Color.White.copy(alpha = 0.78f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(Modifier.height(4.dp))
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Star,
+                                contentDescription = null,
+                                tint = Color(0xFFFFB300),
+                                modifier = Modifier.size(14.dp)
+                            )
                             Text(
-                                text = item.name,
-                                style = MaterialTheme.typography.titleLarge,
+                                text = String.format(Locale.US, "%.1f", item.rating),
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White
+                            )
+                            Text(
+                                text = "• ${formatDownloads(item.downloads)} • ${item.currentSize}",
+                                style = MaterialTheme.typography.labelMedium,
+                                color = Color.White.copy(alpha = 0.75f),
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Text(
-                                text = item.shortDescription ?: item.category?.name ?: item.developer.name,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                            Spacer(Modifier.height(6.dp))
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(Icons.Rounded.Star, contentDescription = null, tint = Color(0xFFFFB300), modifier = Modifier.size(15.dp))
-                                Text(String.format(Locale.US, "%.1f", item.rating), style = MaterialTheme.typography.labelMedium)
-                                Text("• v${item.currentVersion} • ${item.currentSize}", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                            }
                         }
                     }
                 }
             }
         }
+    }
+}
 
-        if (items.size > 1) {
-            Spacer(Modifier.height(10.dp))
-            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                repeat(items.size) { index ->
-                    val selected = pagerState.currentPage == index
+@Composable
+private fun HeroPageIndicator(
+    pagerState: PagerState,
+    pageCount: Int,
+    autoplayProgress: Float
+) {
+    val position = pagerState.currentPage + pagerState.currentPageOffsetFraction
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(5.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        repeat(pageCount) { index ->
+            val amount = (1f - (position - index).absoluteValue).coerceIn(0f, 1f)
+            val width = lerpDp(6.dp, 28.dp, amount)
+            Box(
+                modifier = Modifier
+                    .height(6.dp)
+                    .width(width)
+                    .clip(CircleShape)
+                    .background(MaterialTheme.colorScheme.outline.copy(alpha = 0.9f))
+            ) {
+                if (amount > 0.85f && autoplayProgress > 0f) {
                     Box(
                         modifier = Modifier
-                            .height(6.dp)
-                            .width(if (selected) 20.dp else 6.dp)
-                            .clip(CircleShape)
-                            .background(if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline)
+                            .fillMaxHeight()
+                            .fillMaxWidth(autoplayProgress.coerceIn(0f, 1f))
+                            .background(MaterialTheme.colorScheme.primary)
+                    )
+                } else if (amount > 0.05f) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.primary.copy(alpha = amount))
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun pageDistance(pagerState: PagerState, page: Int): Float {
+    return ((pagerState.currentPage - page) + pagerState.currentPageOffsetFraction).absoluteValue
+}
+
+@Composable
+fun ScreenshotCarousel(
+    urls: List<String>,
+    onOpen: (Int) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    if (urls.isEmpty()) return
+    val pagerState = rememberPagerState(pageCount = { urls.size })
+    Column(modifier = modifier) {
+        HorizontalPager(
+            state = pagerState,
+            pageSize = PageSize.Fixed(158.dp),
+            contentPadding = PaddingValues(horizontal = 16.dp),
+            pageSpacing = 12.dp,
+            beyondViewportPageCount = 2,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(286.dp)
+        ) { page ->
+            val focus = (1f - pageDistance(pagerState, page)).coerceIn(0f, 1f)
+            Surface(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .graphicsLayer {
+                        val scale = lerpF(0.94f, 1f, focus)
+                        scaleX = scale
+                        scaleY = scale
+                    }
+                    .pressScale { onOpen(page) },
+                shape = RoundedCornerShape(22.dp),
+                color = MaterialTheme.colorScheme.surfaceVariant,
+                border = BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outline.copy(alpha = lerpF(0.4f, 1f, focus))
+                )
+            ) {
+                AsyncImage(
+                    model = urls[page],
+                    contentDescription = "Captura ${page + 1} de ${urls.size}",
+                    contentScale = ContentScale.Crop,
+                    modifier = Modifier.fillMaxSize()
+                )
+            }
+        }
+        if (urls.size > 1) {
+            Spacer(Modifier.height(10.dp))
+            Text(
+                text = "${pagerState.currentPage + 1} / ${urls.size}",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(start = 20.dp)
+            )
+        }
+    }
+}
+
+@Composable
+fun FullscreenScreenshotViewer(
+    urls: List<String>,
+    initialPage: Int,
+    onDismiss: () -> Unit
+) {
+    if (urls.isEmpty()) return
+    val start = initialPage.coerceIn(0, urls.lastIndex)
+    Dialog(
+        onDismissRequest = onDismiss,
+        properties = DialogProperties(usePlatformDefaultWidth = false)
+    ) {
+        val pagerState = rememberPagerState(initialPage = start) { urls.size }
+        Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
+            Box(modifier = Modifier.fillMaxSize()) {
+                HorizontalPager(
+                    state = pagerState,
+                    beyondViewportPageCount = 1,
+                    modifier = Modifier.fillMaxSize()
+                ) { page ->
+                    val focus = (1f - pageDistance(pagerState, page)).coerceIn(0f, 1f)
+                    AsyncImage(
+                        model = urls[page],
+                        contentDescription = "Captura ${page + 1}",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .graphicsLayer { alpha = lerpF(0.35f, 1f, focus) }
+                    )
+                }
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(12.dp)
+                ) {
+                    Icon(Icons.Rounded.Close, contentDescription = "Cerrar", tint = Color.White)
+                }
+                Surface(
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = 28.dp),
+                    shape = CircleShape,
+                    color = Color.White.copy(alpha = 0.16f)
+                ) {
+                    Text(
+                        text = "${pagerState.currentPage + 1}  /  ${urls.size}",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = Color.White,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
                     )
                 }
             }
@@ -775,7 +1034,7 @@ fun StoreShimmerSkeleton() {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(18.dp)
     ) {
-        ShimmerBox(modifier = Modifier.fillMaxWidth().height(165.dp), cornerRadius = 22.dp)
+        ShimmerBox(modifier = Modifier.fillMaxWidth().height(232.dp), cornerRadius = 28.dp)
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
             repeat(3) {
                 ShimmerBox(modifier = Modifier.width(126.dp).height(165.dp), cornerRadius = 18.dp)

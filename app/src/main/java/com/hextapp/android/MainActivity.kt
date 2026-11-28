@@ -53,6 +53,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavGraph.Companion.findStartDestination
@@ -82,15 +83,15 @@ import kotlinx.coroutines.launch
 
 private sealed class BottomTab(
     val route: String,
-    val label: String,
+    val labelRes: Int,
     val icon: ImageVector,
     val selectedIcon: ImageVector
 ) {
-    data object Home : BottomTab("home", "Inicio", Icons.Outlined.Home, Icons.Rounded.Home)
-    data object Games : BottomTab("games", "Juegos", Icons.Outlined.SportsEsports, Icons.Rounded.SportsEsports)
-    data object Explore : BottomTab("explore", "Explorar", Icons.Outlined.Explore, Icons.Rounded.Explore)
-    data object Library : BottomTab("library", "Biblioteca", Icons.Outlined.CollectionsBookmark, Icons.Rounded.CollectionsBookmark)
-    data object Profile : BottomTab("profile", "Perfil", Icons.Outlined.Person, Icons.Rounded.Person)
+    data object Home : BottomTab("home", R.string.nav_home, Icons.Outlined.Home, Icons.Rounded.Home)
+    data object Games : BottomTab("games", R.string.nav_games, Icons.Outlined.SportsEsports, Icons.Rounded.SportsEsports)
+    data object Explore : BottomTab("explore", R.string.nav_explore, Icons.Outlined.Explore, Icons.Rounded.Explore)
+    data object Library : BottomTab("library", R.string.nav_library, Icons.Outlined.CollectionsBookmark, Icons.Rounded.CollectionsBookmark)
+    data object Profile : BottomTab("profile", R.string.nav_profile, Icons.Outlined.Person, Icons.Rounded.Person)
 }
 
 class MainActivity : ComponentActivity() {
@@ -285,6 +286,7 @@ private fun HextappRoot(
                                         }
                                     },
                                     icon = {
+                                        val tabLabel = stringResource(tab.labelRes)
                                         if (tab is BottomTab.Library) {
                                             BadgedBox(
                                                 badge = {
@@ -297,17 +299,17 @@ private fun HextappRoot(
                                             ) {
                                                 Icon(
                                                     imageVector = if (selected) tab.selectedIcon else tab.icon,
-                                                    contentDescription = tab.label
+                                                    contentDescription = tabLabel
                                                 )
                                             }
                                         } else {
                                             Icon(
                                                 imageVector = if (selected) tab.selectedIcon else tab.icon,
-                                                contentDescription = tab.label
+                                                contentDescription = tabLabel
                                             )
                                         }
                                     },
-                                    label = { Text(tab.label, maxLines = 1) }
+                                    label = { Text(stringResource(tab.labelRes), maxLines = 1) }
                                 )
                             }
                         }
@@ -362,7 +364,8 @@ private fun HextappRoot(
                     factory = LibraryViewModel.factory(
                         container.authRepository,
                         container.catalogRepository,
-                        container.apkDownloadManager
+                        container.apkDownloadManager,
+                        container.emulatorManager
                     )
                 )
                 LibraryScreen(

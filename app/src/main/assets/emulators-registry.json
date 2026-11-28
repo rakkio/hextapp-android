@@ -1,0 +1,227 @@
+{
+  "version": 1,
+  "updatedAt": "2026-11-28",
+  "emulators": {
+    "retroarch": {
+      "id": "retroarch",
+      "name": "RetroArch",
+      "description": "Multi-system Libretro frontend for 8-bit, 16-bit, PS1, N64, GBA, Dreamcast and Arcade.",
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://buildbot.libretro.com/stable/1.19.1/windows/x86_64/RetroArch.7z",
+          "archiveType": "7z",
+          "executableRelPath": "RetroArch-Win64/retroarch.exe",
+          "coresDirRelPath": "RetroArch-Win64/cores",
+          "biosDirRelPath": "RetroArch-Win64/system"
+        },
+        "linux": {
+          "downloadUrl": "https://buildbot.libretro.com/stable/1.19.1/linux/x86_64/RetroArch.7z",
+          "archiveType": "7z",
+          "executableRelPath": "RetroArch-Linux-x86_64/RetroArch-Linux-x86_64.AppImage",
+          "coresDirRelPath": "RetroArch-Linux-x86_64/cores",
+          "biosDirRelPath": "RetroArch-Linux-x86_64/system"
+        }
+      },
+      "android": {
+        "packageName": "com.retroarch.aarch64",
+        "apkDownloadUrl": "https://buildbot.libretro.com/stable/1.19.1/android/RetroArch_aarch64.apk",
+        "launchMode": "intent_view",
+        "mimeType": "application/octet-stream"
+      }
+    },
+    "dolphin": {
+      "id": "dolphin",
+      "name": "Dolphin Emulator",
+      "description": "GameCube and Wii emulator with HD rendering and controller support.",
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://dl.dolphin-emu.org/releases/2409/dolphin-2409-x64.7z",
+          "archiveType": "7z",
+          "executableRelPath": "Dolphin-x64/Dolphin.exe",
+          "launchArgs": ["-b", "-e", "{romPath}"]
+        }
+      },
+      "android": {
+        "packageName": "org.dolphinemu.dolphinemu",
+        "apkDownloadUrl": "https://dl.dolphin-emu.org/releases/2409/dolphin-2409.apk",
+        "launchMode": "intent_view",
+        "mimeType": "application/octet-stream"
+      }
+    },
+    "pcsx2": {
+      "id": "pcsx2",
+      "name": "PCSX2",
+      "description": "PlayStation 2 emulator (Qt portable build).",
+      "requiresBios": true,
+      "biosFiles": ["scph39001.bin", "scph70012.bin"],
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://github.com/PCSX2/pcsx2/releases/latest/download/pcsx2-v2.2.0-windows-x64-Qt.7z",
+          "archiveType": "7z",
+          "executableRelPath": "pcsx2-qt.exe",
+          "biosDirRelPath": "bios",
+          "launchArgs": ["-batch", "--", "{romPath}"]
+        }
+      },
+      "android": {
+        "packageName": "xyz.aethersx2.android",
+        "apkDownloadUrl": "",
+        "launchMode": "open_app_with_path",
+        "note": "Select the Hextapp ROMs/ps2 folder inside the emulator."
+      }
+    },
+    "ppsspp": {
+      "id": "ppsspp",
+      "name": "PPSSPP",
+      "description": "PlayStation Portable (PSP) emulator.",
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://www.ppsspp.org/files/1_17_1/ppsspp_win.zip",
+          "archiveType": "zip",
+          "executableRelPath": "PPSSPPWindows64.exe",
+          "launchArgs": ["--fullscreen", "{romPath}"]
+        }
+      },
+      "android": {
+        "packageName": "org.ppsspp.ppsspp",
+        "apkDownloadUrl": "https://www.ppsspp.org/files/1_17_1/PPSSPP.apk",
+        "launchMode": "intent_view",
+        "mimeType": "application/octet-stream"
+      }
+    },
+    "duckstation": {
+      "id": "duckstation",
+      "name": "DuckStation",
+      "description": "Fast, accurate PlayStation 1 (PSX) emulator.",
+      "requiresBios": true,
+      "biosFiles": ["scph5501.bin", "scph5500.bin", "scph5502.bin"],
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://github.com/stenzek/duckstation/releases/download/latest/duckstation-windows-x64-release.zip",
+          "archiveType": "zip",
+          "executableRelPath": "duckstation-qt-x64-ReleaseLTCG.exe",
+          "biosDirRelPath": "bios",
+          "launchArgs": ["-batch", "-fullscreen", "--", "{romPath}"]
+        }
+      },
+      "android": {
+        "packageName": "com.github.stenzek.duckstation",
+        "apkDownloadUrl": "https://github.com/stenzek/duckstation/releases/download/latest/duckstation-android-release.apk",
+        "launchMode": "intent_view",
+        "mimeType": "application/octet-stream"
+      }
+    },
+    "melonds": {
+      "id": "melonds",
+      "name": "melonDS",
+      "description": "Nintendo DS & DSi emulator.",
+      "desktop": {
+        "windows": {
+          "downloadUrl": "https://github.com/melonDS-emu/melonDS/releases/download/0.9.5/melonDS_0.9.5_win_x64.zip",
+          "archiveType": "zip",
+          "executableRelPath": "melonDS.exe",
+          "launchArgs": ["{romPath}"]
+        }
+      },
+      "android": {
+        "packageName": "me.magnum.melonds",
+        "apkDownloadUrl": "https://github.com/rafaelvcaetano/melonDS-android/releases/latest/download/app-release.apk",
+        "launchMode": "open_app_with_path",
+        "note": "Select the Hextapp ROMs/nds folder inside melonDS."
+      }
+    }
+  },
+  "systems": {
+    "snes": {
+      "name": "Super Nintendo (SNES)",
+      "extensions": [".sfc", ".smc", ".fig", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "snes9x_libretro",
+      "requiresBios": false
+    },
+    "nes": {
+      "name": "Nintendo Entertainment System (NES)",
+      "extensions": [".nes", ".fds", ".unf", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "mesen_libretro",
+      "requiresBios": false
+    },
+    "game-boy": {
+      "name": "Game Boy / Game Boy Color",
+      "extensions": [".gbc", ".gb", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "sameboy_libretro",
+      "requiresBios": false
+    },
+    "gba": {
+      "name": "Game Boy Advance (GBA)",
+      "extensions": [".gba", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "mgba_libretro",
+      "requiresBios": false
+    },
+    "n64": {
+      "name": "Nintendo 64",
+      "extensions": [".z64", ".n64", ".v64", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "mupen64plus_next_libretro",
+      "requiresBios": false
+    },
+    "nds": {
+      "name": "Nintendo DS",
+      "extensions": [".nds", ".dsi", ".zip"],
+      "emulatorId": "melonds",
+      "retroarchCore": "melonds_libretro",
+      "requiresBios": false
+    },
+    "gamecube-wii": {
+      "name": "GameCube / Wii",
+      "extensions": [".rvz", ".gcz", ".iso", ".wbfs", ".gcm", ".ciso"],
+      "emulatorId": "dolphin",
+      "requiresBios": false
+    },
+    "ps1": {
+      "name": "PlayStation 1 (PSX)",
+      "extensions": [".chd", ".cue", ".pbp", ".iso", ".bin"],
+      "emulatorId": "duckstation",
+      "retroarchCore": "swanstation_libretro",
+      "requiresBios": true,
+      "biosFiles": ["scph5501.bin"]
+    },
+    "ps2": {
+      "name": "PlayStation 2 (PS2)",
+      "extensions": [".chd", ".iso", ".cso", ".bin"],
+      "emulatorId": "pcsx2",
+      "requiresBios": true,
+      "biosFiles": ["scph39001.bin"]
+    },
+    "psp": {
+      "name": "PlayStation Portable (PSP)",
+      "extensions": [".iso", ".cso", ".chd", ".pbp"],
+      "emulatorId": "ppsspp",
+      "requiresBios": false
+    },
+    "mega-drive": {
+      "name": "Sega Mega Drive / Genesis",
+      "extensions": [".md", ".gen", ".bin", ".smd", ".zip"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "genesis_plus_gx_libretro",
+      "requiresBios": false
+    },
+    "dreamcast": {
+      "name": "Sega Dreamcast",
+      "extensions": [".chd", ".cdi", ".gdi"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "flycast_libretro",
+      "requiresBios": true,
+      "biosFiles": ["dc_boot.bin", "dc_flash.bin"]
+    },
+    "mame": {
+      "name": "Arcade (MAME)",
+      "extensions": [".zip", ".7z"],
+      "emulatorId": "retroarch",
+      "retroarchCore": "mame_libretro",
+      "requiresBios": false
+    }
+  }
+}

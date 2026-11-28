@@ -2,5 +2,6 @@
 <paths>
     <external-files-path name="apk_downloads" path="Download/apks/" />
     <external-files-path name="external_downloads" path="Download/" />
+    <external-files-path name="roms_dir" path="Download/roms/" />
     <files-path name="internal_apks" path="apks/" />
 </paths>

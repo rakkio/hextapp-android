@@ -3,7 +3,6 @@ package com.hextapp.android.ui.screens.detail
 import android.content.Intent
 import android.net.Uri
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -19,9 +18,6 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.lazy.itemsIndexed
-import androidx.compose.foundation.pager.HorizontalPager
-import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.ArrowBack
@@ -59,20 +55,20 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import coil3.compose.AsyncImage
+import com.hextapp.android.R
 import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.ui.components.AppCarouselCard
 import com.hextapp.android.ui.components.AppIconImage
+import com.hextapp.android.ui.components.FullscreenScreenshotViewer
+import com.hextapp.android.ui.components.PromoBannerCard
 import com.hextapp.android.ui.components.RatingBar
+import com.hextapp.android.ui.components.ScreenshotCarousel
 import com.hextapp.android.ui.components.WebDownloadDialog
 import com.hextapp.android.ui.components.formatBytes
 import com.hextapp.android.ui.components.formatDownloads
@@ -115,14 +111,14 @@ fun AppDetailScreen(
                     },
                     navigationIcon = {
                         IconButton(onClick = onBack) {
-                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = "Atrás")
+                            Icon(Icons.AutoMirrored.Outlined.ArrowBack, contentDescription = stringResource(R.string.detail_back))
                         }
                     },
                     actions = {
                         IconButton(onClick = viewModel::toggleFavorite) {
                             Icon(
                                 imageVector = if (state.isFavorite) Icons.Rounded.Favorite else Icons.Outlined.FavoriteBorder,
-                                contentDescription = "Favorito",
+                                contentDescription = stringResource(R.string.detail_favorite),
                                 tint = if (state.isFavorite) Color(0xFFFF5C7A) else MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -265,29 +261,18 @@ fun AppDetailScreen(
                     // Screenshots
                     if (screenshotUrls.isNotEmpty()) {
                         item {
-                            LazyRow(
-                                contentPadding = PaddingValues(horizontal = 16.dp),
-                                horizontalArrangement = Arrangement.spacedBy(12.dp)
-                            ) {
-                                itemsIndexed(screenshotUrls) { index, url ->
-                                    Surface(
-                                        shape = RoundedCornerShape(14.dp),
-                                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline)
-                                    ) {
-                                        AsyncImage(
-                                            model = url,
-                                            contentDescription = "Captura ${index + 1}",
-                                            contentScale = ContentScale.Crop,
-                                            modifier = Modifier
-                                                .height(210.dp)
-                                                .width(120.dp)
-                                                .clip(RoundedCornerShape(14.dp))
-                                                .clickable { fullscreenImageIndex = index }
-                                        )
-                                    }
-                                }
-                            }
+                            ScreenshotCarousel(
+                                urls = screenshotUrls,
+                                onOpen = { fullscreenImageIndex = it }
+                            )
                         }
+                    }
+
+                    // Espacio patrocinado no invasivo
+                    item {
+                        PromoBannerCard(
+                            modifier = Modifier.padding(horizontal = 16.dp)
+                        )
                     }
 
                     // Description
@@ -423,32 +408,11 @@ fun AppDetailScreen(
                 // Fullscreen Screenshot Viewer
                 val startIndex = fullscreenImageIndex
                 if (startIndex != null && screenshotUrls.isNotEmpty()) {
-                    Dialog(
-                        onDismissRequest = { fullscreenImageIndex = null },
-                        properties = DialogProperties(usePlatformDefaultWidth = false)
-                    ) {
-                        Surface(modifier = Modifier.fillMaxSize(), color = Color.Black) {
-                            Box(modifier = Modifier.fillMaxSize()) {
-                                val pagerState = rememberPagerState(initialPage = startIndex) { screenshotUrls.size }
-                                HorizontalPager(state = pagerState, modifier = Modifier.fillMaxSize()) { page ->
-                                    AsyncImage(
-                                        model = screenshotUrls[page],
-                                        contentDescription = null,
-                                        contentScale = ContentScale.Fit,
-                                        modifier = Modifier.fillMaxSize()
-                                    )
-                                }
-                                IconButton(
-                                    onClick = { fullscreenImageIndex = null },
-                                    modifier = Modifier
-                                        .align(Alignment.TopEnd)
-                                        .padding(16.dp)
-                                ) {
-                                    Icon(Icons.Rounded.Close, contentDescription = "Cerrar", tint = Color.White)
-                                }
-                            }
-                        }
-                    }
+                    FullscreenScreenshotViewer(
+                        urls = screenshotUrls,
+                        initialPage = startIndex,
+                        onDismiss = { fullscreenImageIndex = null }
+                    )
                 }
                 val browserState = state.downloadState as? DownloadState.RequiresBrowser
                 if (browserState != null) {

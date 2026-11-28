@@ -8,6 +8,10 @@ import com.hextapp.android.data.download.ApkDownloadManager
 import com.hextapp.android.data.download.DownloadState
 import com.hextapp.android.data.download.LocalApkFile
 import com.hextapp.android.data.download.VaultItem
+import com.hextapp.android.data.emulators.AndroidEmulatorStatus
+import com.hextapp.android.data.emulators.EmulatorManager
+import com.hextapp.android.data.emulators.LocalRomItem
+import com.hextapp.android.data.emulators.RomLaunchResult
 import com.hextapp.android.data.repository.AuthRepository
 import com.hextapp.android.data.repository.CatalogRepository
 import com.hextapp.android.data.repository.UserSession
@@ -28,18 +32,26 @@ data class LibraryUiState(
     val vaultItems: List<VaultItem> = emptyList(),
     val activeDownloads: Map<String, DownloadState> = emptyMap(),
     val isLoading: Boolean = false,
-    val isArchivingToVault: Boolean = false
+    val isArchivingToVault: Boolean = false,
+    val emulators: List<AndroidEmulatorStatus> = emptyList(),
+    val localRoms: List<LocalRomItem> = emptyList(),
+    val romLaunchResult: RomLaunchResult? = null
 )
 
 class LibraryViewModel(
     private val authRepository: AuthRepository,
     private val catalogRepository: CatalogRepository,
-    private val apkDownloadManager: ApkDownloadManager
+    private val apkDownloadManager: ApkDownloadManager,
+    private val emulatorManager: EmulatorManager
 ) : ViewModel() {
 
     private val allAndroidItems = MutableStateFlow<List<ItemSummary>>(emptyList())
     private val isLoading = MutableStateFlow(false)
     private val isArchiving = MutableStateFlow(false)
+    private val emulatorsAndRoms = MutableStateFlow(
+        Pair(emptyList<AndroidEmulatorStatus>(), emptyList<LocalRomItem>())
+    )
+    private val romLaunchResult = MutableStateFlow<RomLaunchResult?>(null)
 
     val uiState: StateFlow<LibraryUiState> = combine(
         authRepository.session,
@@ -48,7 +60,9 @@ class LibraryViewModel(
         apkDownloadManager.vaultItems,
         apkDownloadManager.downloads,
         isLoading,
-        isArchiving
+        isArchiving,
+        emulatorsAndRoms,
+        romLaunchResult
     ) { values ->
         @Suppress("UNCHECKED_CAST")
         val session = values[0] as UserSession?
@@ -62,6 +76,9 @@ class LibraryViewModel(
         val downloads = values[4] as Map<String, DownloadState>
         val loading = values[5] as Boolean
         val archiving = values[6] as Boolean
+        @Suppress("UNCHECKED_CAST")
+        val emuRomPair = values[7] as Pair<List<AndroidEmulatorStatus>, List<LocalRomItem>>
+        val launchRes = values[8] as RomLaunchResult?
 
         val favIds = session?.favorites.orEmpty()
         val bmIds = session?.bookmarks.orEmpty()
@@ -76,7 +93,10 @@ class LibraryViewModel(
             vaultItems = vaultItems,
             activeDownloads = inProgress,
             isLoading = loading,
-            isArchivingToVault = archiving
+            isArchivingToVault = archiving,
+            emulators = emuRomPair.first,
+            localRoms = emuRomPair.second,
+            romLaunchResult = launchRes
         )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), LibraryUiState())
 
@@ -87,6 +107,7 @@ class LibraryViewModel(
     fun refresh() {
         apkDownloadManager.refreshLocalApks()
         apkDownloadManager.refreshVault()
+        refreshEmulatorsAndRoms()
         viewModelScope.launch {
             isLoading.value = true
             catalogRepository.getItems(page = 1, limit = 100).onSuccess { paged ->
@@ -94,6 +115,38 @@ class LibraryViewModel(
             }
             isLoading.value = false
         }
+    }
+
+    fun refreshEmulatorsAndRoms() {
+        emulatorsAndRoms.value = Pair(
+            emulatorManager.getEmulatorStatuses(),
+            emulatorManager.listExtractedRoms()
+        )
+    }
+
+    fun installEmulator(context: Context, emulator: AndroidEmulatorStatus) {
+        if (emulator.apkDownloadUrl.isBlank()) return
+        viewModelScope.launch {
+            val file = apkDownloadManager.downloadApk(
+                itemId = "emu_${emulator.id}",
+                itemName = emulator.name,
+                slug = "emu-${emulator.id}",
+                version = "latest",
+                fallbackUrl = emulator.apkDownloadUrl
+            )
+            if (file != null) {
+                apkDownloadManager.installWithNexus(context, file, itemId = "emu_${emulator.id}")
+                refreshEmulatorsAndRoms()
+            }
+        }
+    }
+
+    fun launchRom(rom: LocalRomItem) {
+        romLaunchResult.value = emulatorManager.launchRom(rom.file, rom.consoleSlug)
+    }
+
+    fun dismissLaunchResult() {
+        romLaunchResult.value = null
     }
 
     fun archiveToVault(file: File) {
@@ -132,11 +185,12 @@ class LibraryViewModel(
         fun factory(
             authRepo: AuthRepository,
             catalogRepo: CatalogRepository,
-            downloadManager: ApkDownloadManager
+            downloadManager: ApkDownloadManager,
+            emulatorManager: EmulatorManager
         ): ViewModelProvider.Factory = object : ViewModelProvider.Factory {
             @Suppress("UNCHECKED_CAST")
             override fun <T : ViewModel> create(modelClass: Class<T>): T =
-                LibraryViewModel(authRepo, catalogRepo, downloadManager) as T
+                LibraryViewModel(authRepo, catalogRepo, downloadManager, emulatorManager) as T
         }
     }
 }

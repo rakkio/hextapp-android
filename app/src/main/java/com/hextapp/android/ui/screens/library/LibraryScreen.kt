@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -27,7 +29,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.PrimaryTabRow
+import androidx.compose.material3.PrimaryScrollableTabRow
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
@@ -35,9 +37,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
@@ -45,6 +45,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.hextapp.android.data.download.DownloadState
+import kotlinx.coroutines.launch
 import com.hextapp.android.data.nexus.ArchiveKind
 import com.hextapp.android.ui.components.AppListRow
 import com.hextapp.android.ui.components.HextappTopBar
@@ -64,33 +65,53 @@ fun LibraryScreen(
 ) {
     val state by viewModel.uiState.collectAsState()
     val context = LocalContext.current
-    var selectedTab by remember { mutableIntStateOf(0) }
+    val scope = rememberCoroutineScope()
     val tabs = listOf(
-        "Descargas (${state.localApks.size})",
-        "Bóveda (${state.vaultItems.size})",
-        "Favoritos",
-        "Guardados"
+        "Descargas" to state.localApks.size,
+        "ROMs" to state.localRoms.size,
+        "Emuladores" to state.emulators.count { it.installed },
+        "Bóveda" to state.vaultItems.size,
+        "Favoritos" to state.favoriteItems.size,
+        "Guardados" to state.bookmarkItems.size
     )
+    val pagerState = rememberPagerState(pageCount = { tabs.size })
 
     Column(modifier = Modifier.fillMaxSize()) {
         HextappTopBar(
             title = "Mi Biblioteca",
-            subtitle = "Tus APKs, favoritos y guardados",
+            subtitle = "Desliza entre descargas, bóveda y listas",
             isDarkTheme = isDarkTheme,
             onToggleTheme = onToggleTheme,
             onSearchClick = onGoToExplore
         )
 
-        PrimaryTabRow(selectedTabIndex = selectedTab) {
-            tabs.forEachIndexed { index, title ->
+        PrimaryScrollableTabRow(
+            selectedTabIndex = pagerState.currentPage,
+            edgePadding = 12.dp,
+            containerColor = MaterialTheme.colorScheme.background,
+            divider = {}
+        ) {
+            tabs.forEachIndexed { index, (title, count) ->
                 Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    selected = pagerState.currentPage == index,
+                    onClick = { scope.launch { pagerState.animateScrollToPage(index) } },
+                    text = {
+                        Text(
+                            text = if (count > 0) "$title  $count" else title,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            fontWeight = if (pagerState.currentPage == index) FontWeight.Bold else FontWeight.Medium
+                        )
+                    }
                 )
             }
         }
 
+        HorizontalPager(
+            state = pagerState,
+            beyondViewportPageCount = 1,
+            modifier = Modifier.fillMaxSize()
+        ) { selectedTab ->
         when (selectedTab) {
             0 -> {
                 if (state.localApks.isEmpty() && state.activeDownloads.isEmpty()) {
@@ -244,6 +265,24 @@ fun LibraryScreen(
             }
 
             1 -> {
+                RomsTabContent(
+                    roms = state.localRoms,
+                    onPlayRom = { viewModel.launchRom(it) },
+                    onRefresh = { viewModel.refreshEmulatorsAndRoms() },
+                    onGoToExplore = onGoToExplore
+                )
+            }
+
+            2 -> {
+                EmulatorsTabContent(
+                    context = context,
+                    emulators = state.emulators,
+                    onInstallEmulator = { ctx, emu -> viewModel.installEmulator(ctx, emu) },
+                    onRefresh = { viewModel.refreshEmulatorsAndRoms() }
+                )
+            }
+
+            3 -> {
                 Column(modifier = Modifier.fillMaxSize()) {
                     if (state.isArchivingToVault) {
                         LinearProgressIndicator(modifier = Modifier.fillMaxWidth())
@@ -252,7 +291,7 @@ fun LibraryScreen(
                         EmptyState(
                             message = "Tu Bóveda NX6R está vacía. Archiva APKs o XAPKs desde Descargas para ahorrar ~35% de espacio y reinstalarlos sin gastar datos.",
                             ctaLabel = "Ver Descargas",
-                            onCta = { selectedTab = 0 }
+                            onCta = { scope.launch { pagerState.animateScrollToPage(0) } }
                         )
                     } else {
                         val vaultBytes = state.vaultItems.sumOf { it.sizeBytes }
@@ -336,7 +375,7 @@ fun LibraryScreen(
                 }
             }
 
-            2 -> {
+            4 -> {
                 if (state.session == null) {
                     LoginPrompt(onGoToProfile)
                 } else if (state.favoriteItems.isEmpty()) {
@@ -357,7 +396,7 @@ fun LibraryScreen(
                 }
             }
 
-            3 -> {
+            5 -> {
                 if (state.session == null) {
                     LoginPrompt(onGoToProfile)
                 } else if (state.bookmarkItems.isEmpty()) {
@@ -378,7 +417,15 @@ fun LibraryScreen(
                 }
             }
         }
+        }
     }
+
+    RomLaunchFeedbackDialog(
+        result = state.romLaunchResult,
+        context = context,
+        onInstallEmulator = { ctx, emu -> viewModel.installEmulator(ctx, emu) },
+        onDismiss = { viewModel.dismissLaunchResult() }
+    )
 }
 
 @Composable

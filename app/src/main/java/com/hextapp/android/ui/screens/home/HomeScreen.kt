@@ -40,12 +40,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import com.hextapp.android.R
 import com.hextapp.android.ui.components.AppCarouselCard
 import com.hextapp.android.ui.components.AppListRow
 import com.hextapp.android.ui.components.HeroShowcasePager
 import com.hextapp.android.ui.components.HextappTopBar
+import com.hextapp.android.ui.components.PromoBannerCard
 import com.hextapp.android.ui.components.StoreShimmerSkeleton
 import com.hextapp.android.ui.components.pressScale
 import com.hextapp.android.ui.theme.HextPrimary
@@ -67,8 +70,8 @@ fun HomeScreen(
         HextappTopBar(
             title = "Hextapp",
             subtitle = if (state.androidApps.isNotEmpty() || state.androidGames.isNotEmpty())
-                "🔥 ${(state.androidApps.size + state.androidGames.size)} apps cargadas"
-            else "Tienda Android • Juegos y Apps",
+                "🔥 ${(state.androidApps.size + state.androidGames.size)} apps"
+            else stringResource(R.string.home_subtitle_default),
             isDarkTheme = isDarkTheme,
             onToggleTheme = onToggleTheme,
             onSearchClick = onSeeAllExplore
@@ -91,7 +94,7 @@ fun HomeScreen(
                     Button(onClick = { viewModel.loadHome(isRefresh = false) }) {
                         Icon(Icons.Rounded.Refresh, contentDescription = null)
                         Spacer(Modifier.width(8.dp))
-                        Text("Reintentar")
+                        Text(stringResource(R.string.home_retry))
                     }
                 }
             }
@@ -265,6 +268,13 @@ fun HomeScreen(
                             }
                         }
                     }
+                }
+
+                // Espacio patrocinado no invasivo
+                item {
+                    PromoBannerCard(
+                        modifier = Modifier.padding(horizontal = 16.dp)
+                    )
                 }
 
                 // Top Valorados

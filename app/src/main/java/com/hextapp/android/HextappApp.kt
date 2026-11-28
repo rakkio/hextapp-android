@@ -2,6 +2,7 @@ package com.hextapp.android
 
 import android.app.Application
 import com.hextapp.android.data.download.ApkDownloadManager
+import com.hextapp.android.data.emulators.EmulatorManager
 import com.hextapp.android.data.local.HomeCacheStorage
 import com.hextapp.android.data.local.SearchHistoryStorage
 import com.hextapp.android.data.local.ThemePreferences
@@ -27,6 +28,7 @@ class AppContainer(application: Application) {
     val catalogRepository = CatalogRepository(apolloProvider.apolloClient)
     val authRepository = AuthRepository(apolloProvider.apolloClient, tokenStorage)
     val apkDownloadManager = ApkDownloadManager(application, apolloProvider.downloadOkHttpClient)
+    val emulatorManager = EmulatorManager(application)
     val appUpdateManager = AppUpdateManager(
         context = application,
         okHttpClient = apolloProvider.publicOkHttpClient,
